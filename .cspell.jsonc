@@ -1,0 +1,46 @@
+{
+  "language": "en",
+  "useGitignore": true,
+  "ignorePaths": [
+    "**/*.log",
+    "apm_modules/**/*",
+    // Agent primitives deployed from tbhb-dev/devtools and pinned by
+    // content hash in apm.lock.yaml. Their vocabulary is upstream's.
+    ".agents/skills/**/*",
+    ".agents/rules/**/*",
+    ".claude/rules/**/*",
+    ".claude/skills/**/*",
+    ".claude/worktrees/**/*",
+    ".codex/worktrees/**/*",
+    ".worktrees/**/*",
+    // The vendored devtools payload answers to the publisher's dictionary.
+    ".config/mise/**/*",
+    ".devtools/**/*",
+    ".rumdl_cache/**/*",
+    ".vale/**/*",
+    "apm.lock.yaml",
+    // Dependency lockfiles contain generated names and checksums.
+    "bin/**/*",
+    "coverage/**/*",
+    "coverage.out",
+    "logs/**/*",
+    "spikes/**/*",
+    "vendor/**/*",
+    "mise.lock",
+    "dist/**/*",
+    "coverage.xml",
+    // Private values, gitignored; nothing in it belongs in a dictionary.
+    "mise.local.toml",
+    "tmp/**/*",
+    "vendir.lock.yml",
+    "LICENSE"
+  ],
+  "dictionaryDefinitions": [
+    {
+      "name": "ascm",
+      "path": "./.cspell-words.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["ascm"]
+}

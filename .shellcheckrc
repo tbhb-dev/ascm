@@ -1,0 +1,8 @@
+# SC2312: a command substitution used as an argument, or inside a test,
+# discards the status of the command it runs. A check written that way
+# passes when the command printed the right answer and then failed, or
+# failed with nothing when nothing is the answer it wants. Assign the output
+# first and test the status, or, where masking is intended, disable it on
+# that command with a reason. SC2155, its counterpart for local and export,
+# is on by default and stays on.
+enable=check-extra-masked-returns

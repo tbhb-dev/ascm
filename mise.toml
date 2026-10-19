@@ -1,0 +1,146 @@
+# ascm toolchain and tasks.
+
+[settings]
+lockfile = true
+idiomatic_version_file_enable_tools = []
+
+[tools]
+vendir = "0.46.2"
+apm = "0.33.0"
+shfmt = "3.14.1"
+jq = "1.8.2"
+"go:github.com/tbhb-dev/devtools/cmd/guard-markdown" = "v0.12.0"
+bats = "1.14.0"
+uv = "0.12.23"
+
+[env]
+DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
+DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\nbin/\ncoverage/\ntmp/\nspikes/\n.vale/"
+DEVTOOLS_PROSE_GLOB = "*.md"
+
+[task_config]
+includes = [
+  ".devtools/tasks/apm.toml",
+  ".devtools/tasks/fix.toml",
+  ".devtools/tasks/format.toml",
+  ".devtools/tasks/git-hooks.toml",
+  ".devtools/tasks/go.toml",
+  ".devtools/tasks/leaks.toml",
+  ".devtools/tasks/lint.toml",
+  ".devtools/tasks/pins.toml",
+  ".devtools/tasks/preapproval.toml",
+  ".devtools/tasks/security.toml",
+  ".devtools/tasks/toolchain.toml",
+  ".devtools/tasks/vendir.toml",
+]
+
+[tasks.bootstrap]
+description = "Sync the vendored payload, install the toolchain, and install git hooks"
+alias = "setup"
+run = [
+  "vendir sync",
+  "mise run install-toolchain",
+  "mise run install-tools",
+  "mise run devtools:prek-install",
+  "mise run devtools:install-leak-hook",
+]
+
+[tasks.install-toolchain]
+description = "Install the pinned toolchain from mise.toml and the vendored conf.d"
+run = "mise install"
+
+[tasks.install-tools]
+description = "Download the Vale style packages .vale.ini names"
+run = "vale sync"
+
+[tasks.check-docs]
+shell = "bash -c"
+description = "guard-markdown on every tracked Markdown file, then the OKF check on docs/ and on every other Markdown file"
+run = """
+command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb-dev/devtools/cmd/guard-markdown@v0.12.0" >&2; exit 1; }
+git ls-files -z '*.md' ':!:.devtools/**' ':!:.claude/**' ':!:apm_modules/**' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
+uv run --no-project --with pyyaml python scripts/okf-check.py docs
+uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
+"""
+
+[tasks.test-skills]
+description = "Run the bats suites of the repository-local agent skills"
+run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
+
+[tasks.check]
+description = "Check documentation and test the repository-local skills"
+depends = ["check-docs", "test-skills"]
+
+[tasks.lint-draft]
+extends = "devtools:lint-draft"
+
+[tasks.lint-pr-description]
+extends = "devtools:lint-pr-description"
+run = [
+  "bash .claude/skills/pr/scripts/validate-description.sh",
+  "vale --output=ai-tells-agent.tmpl PR_AGENTDESC.md",
+  "cspell --config .cspell.jsonc --no-summary --no-progress --no-gitignore PR_AGENTDESC.md",
+  "bash $DEVTOOLS_DIR/scripts/check-leaks.sh PR_AGENTDESC.md",
+]
+
+[tasks.lint-prose]
+extends = "devtools:lint-prose"
+
+[tasks.fix-prose-replacements]
+extends = "devtools:fix-prose-replacements"
+
+[tasks.lint-commit-msg]
+extends = "devtools:lint-commit-msg"
+
+[tasks.lint-squash-msg]
+extends = "devtools:lint-squash-msg"
+
+[tasks.lint-skills]
+shell = "bash -c"
+description = "Lint the repository-local skills' sources and .claude/rules, which devtools' file selection skips"
+run = """
+set -euo pipefail
+shopt -s nullglob
+docs=(.agents/skills/agent-*/SKILL.md .claude/rules/*.md)
+scripts=(.agents/skills/agent-*/scripts/*.sh)
+vale --output=ai-tells-agent.tmpl "${docs[@]}"
+guard-markdown "${docs[@]}"
+shellcheck -o check-extra-masked-returns "${scripts[@]}"
+shfmt -d "${scripts[@]}"
+"""
+
+[tasks.lint]
+extends = "devtools:lint"
+run = [
+  "mise run devtools:check-vendored",
+  "mise run devtools:check-pins",
+  "mise run devtools:lint-apm",
+  "mise run devtools:lint-leaks",
+  "mise run devtools:check-leak-hook",
+  "mise run lint-prose",
+  "mise run devtools:lint-spelling",
+  "mise run devtools:lint-markdown",
+  "mise run devtools:lint-markdown-wrap",
+  "mise run devtools:lint-config",
+  "mise run devtools:lint-yaml",
+  "mise run devtools:lint-toml",
+  "mise run devtools:lint-mise",
+  "mise run devtools:lint-workflows",
+  "mise run devtools:lint-shell",
+  "mise run devtools:lint-shell-fmt",
+  "mise run lint-skills",
+  "mise run devtools:lint-curl",
+]
+
+[tasks.lint-leaks]
+description = "Check for private identifiers"
+quiet = true
+run = "bash $DEVTOOLS_DIR/scripts/check-leaks.sh"
+
+[tasks.install-pre-push]
+description = "Install the leak scan before prek at pre-push"
+run = "mise run devtools:install-leak-hook"
+
+[tasks.lint-hooks]
+description = "Check the leak scan hook"
+run = "mise run devtools:check-leak-hook"

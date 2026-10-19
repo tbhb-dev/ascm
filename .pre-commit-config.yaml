@@ -1,0 +1,134 @@
+---
+default_stages: [pre-commit, pre-push]
+
+# Hooks never touch vendored third-party code; that source is reviewed at PR
+# time as part of vendor-check, not reformatted to match this repo's style.
+exclude: |
+  (?x)^(bin/|coverage/|tmp/|logs/|spikes/|apm_modules/|\.devtools/|\.config/mise/|\.claude/|\.vale/
+  |vendir\.lock\.yml$|apm\.lock\.yaml$)
+
+# Every hook that runs a project tool goes through `mise run <task>`, so
+# the hook and the `mise run` gate execute the same pinned binary. The
+# devtools block keeps its own `rev:`, pinned by SHA with a `# frozen:`
+# tag comment that devtools:check-pins reads and Renovate's pre-commit
+# manager tracks.
+#
+# Install with `mise run devtools:prek-install`, which sets up the
+# commit-msg, pre-commit, pre-push, and post-commit stages.
+
+repos:
+  - repo: builtin
+    hooks:
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  # The shared hooks: the commit-msg gates, the post-commit hook that deletes
+  # the COMMIT_AGENTMSG draft once a commit lands, guard-markdown, and the
+  # leak check at three stages. vale-commit-msg and cspell-commit-msg read
+  # this repository's .vale.ini and .cspell.jsonc. leaks-staged scans the
+  # index blobs, so a private value cannot hide behind a cleaned working
+  # file. leaks-pre-push only asserts that the install-pre-push wrapper
+  # sits in front of prek's pre-push hook, because prek hides git's ref
+  # lines from its hooks.
+  - repo: https://github.com/tbhb-dev/devtools
+    rev: 7a880f49f2bfc912f757eda4e320168b8c8fa855  # frozen: v0.12.0
+    hooks:
+      - id: commit-trailers
+      - id: commitlint
+      - id: vale-commit-msg
+      - id: cspell-commit-msg
+      - id: clear-commit-agentmsg
+      - id: guard-markdown
+      - id: leaks-staged
+      - id: leaks-commit-msg
+      - id: leaks-pre-push
+
+  - repo: local
+    hooks:
+      - id: ryl
+        name: ryl
+        entry: mise run devtools:lint-yaml
+        language: system
+        types: [yaml]
+
+      - id: tombi
+        name: tombi (TOML lint and format check)
+        entry: mise run devtools:lint-toml
+        language: system
+        types: [toml]
+        pass_filenames: false
+
+      - id: mise-fmt
+        name: mise fmt --check
+        entry: mise run devtools:lint-mise
+        language: system
+        files: ^(mise\.toml|\.config/mise/conf\.d/.*\.toml)$
+        pass_filenames: false
+
+      - id: lint-shell
+        name: shellcheck
+        entry: mise run devtools:lint-shell
+        language: system
+        files: ^.*\.sh$
+        pass_filenames: false
+
+      - id: lint-shell-fmt
+        name: shfmt
+        entry: mise run devtools:lint-shell-fmt
+        language: system
+        files: ^.*\.sh$
+        pass_filenames: false
+
+      - id: lint-prose
+        name: vale (prose)
+        entry: mise run lint-prose
+        language: system
+        types: [markdown]
+
+      - id: cspell
+        name: cspell
+        entry: mise run devtools:lint-spelling
+        language: system
+        pass_filenames: false
+
+      - id: rumdl
+        name: rumdl
+        entry: mise run devtools:lint-markdown
+        language: system
+        types: [markdown]
+
+      - id: biome
+        name: biome (JSON lint and format check)
+        entry: mise run devtools:lint-config
+        language: system
+        files: \.(json|jsonc|json5)$
+        pass_filenames: false
+
+      - id: actionlint
+        name: actionlint
+        entry: mise run devtools:lint-workflows
+        language: system
+        files: ^\.github/workflows/
+        pass_filenames: false
+
+      # The vendir drift gate: resync and fail on any difference against
+      # what git holds.
+      - id: check-vendored
+        name: vendir drift check
+        entry: mise run devtools:check-vendored
+        language: system
+        files: ^(vendir\.(yml|lock\.yml)$|\.config/mise/conf\.d/|\.devtools/)
+        pass_filenames: false
+
+      - id: check-pins
+        name: devtools pin agreement
+        entry: mise run devtools:check-pins
+        language: system
+        files: ^(apm\.yml|vendir\.yml|\.pre-commit-config\.yaml|\.github/renovate\.json5|\.github/workflows/.*)$
+        pass_filenames: false

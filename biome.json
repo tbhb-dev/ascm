@@ -1,0 +1,41 @@
+{
+  "root": true,
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.json",
+      "**/*.jsonc",
+      "**/*.json5",
+      "!vendor",
+      "!dist",
+      "!bin",
+      "!.vale",
+      "!.devtools",
+      "!.config/mise/locks",
+      "!.claude",
+      "!apm_modules",
+      "!target",
+      "!tmp",
+      "!spikes",
+      "!logs"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "assist": {
+    "enabled": false
+  }
+}

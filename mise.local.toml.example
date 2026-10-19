@@ -1,0 +1,10 @@
+# Copy to mise.local.toml, fill in, and never commit the copy. The values
+# below are placeholders only; real host names, addresses and account names
+# belong in the gitignored mise.local.toml. The leak check
+# (.devtools/scripts/check-leaks.sh) reads the real values from there and
+# fails a commit or push that has one.
+[env]
+# Comma-separated strings to keep out of the repository, such as host names,
+# account names or project identifiers. May be empty. An entry under four
+# characters is skipped, and an entry cannot contain a comma.
+ASCM_PRIVATE_STRINGS = ""

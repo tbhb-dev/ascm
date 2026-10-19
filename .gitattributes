@@ -1,0 +1,24 @@
+* text=auto eol=lf
+*.go text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+
+# Generated lockfiles are not reviewed line by line.
+*.lock -diff
+
+# The mise lockfiles hold the toolchain download digests; a version bump's
+# diff is the only place a reviewer sees them change. The bare basename
+# matches both ./mise.lock and .config/mise/mise.lock.
+mise.lock diff
+
+# Read by the resolve-rebase-conflicts skill through
+# `git check-attr rebase-resolve`. apm regenerates this lockfile wholesale.
+apm.lock.yaml rebase-resolve=regenerate
+
+# Written by the skill token tooling; re-running it is the answer.
+**/skills/*/tokens.json rebase-resolve=regenerate
+
+# The resolve-rebase-conflicts skill shows the conflict marker shape in its
+# own text, and marker-scan.sh reads this attribute to skip the copy.
+.claude/skills/resolve-rebase-conflicts/SKILL.md conflict-markers=documented
+.agents/skills/resolve-rebase-conflicts/SKILL.md conflict-markers=documented

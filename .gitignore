@@ -1,0 +1,23 @@
+mise.local.toml
+
+# Generated tools, dependencies, and agent drafts.
+apm_modules/
+.rumdl_cache/
+.cspell-cache
+.fix-prose/
+COMMIT_AGENTMSG
+PR_AGENTDESC.md
+SQUASH_AGENTMSG
+.claude/worktrees/
+.claude/settings.local.json
+tmp/
+.vale/*
+!.vale/project/
+!.vale/config/
+.vale/config/*
+!.vale/config/vocabularies/
+.vale/config/vocabularies/*
+!.vale/config/vocabularies/project/
+/bin/
+/coverage/
+coverage.out

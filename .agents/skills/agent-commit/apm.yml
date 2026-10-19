@@ -1,0 +1,12 @@
+---
+# Makes this directory a local APM package that deploys only to Claude.
+# Codex reads .agents/skills directly, so a Codex deploy would target
+# the source itself.
+name: agent-commit
+version: 0.1.0
+description: Repository-local agent-commit skill
+targets:
+  - claude
+dependencies:
+  apm: []
+  mcp: []

@@ -1,0 +1,11 @@
+# The root .shellcheckrc turns on SC2312, and lint-skills passes the same
+# option on the command line. This file's `disable` overrides both for the
+# scripts in this directory, as running shellcheck with that option on them
+# confirms. The agent-commit, agent-pr and
+# agent-merge-pr scripts trip it 149 times at 106 sites. Nearly all are
+# `[ "$(cmd)" = x ]` tests, `echo "$(as_conf ...)"` calls where as_conf
+# always exits 0, and pipelines inside messages, where the masked status
+# changes nothing. The bats suites pin that behavior, and rewriting every
+# site would change it without a test per change, so the rule stays off
+# for this directory only.
+disable=SC2312

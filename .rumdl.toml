@@ -1,0 +1,43 @@
+[global]
+disable = [
+  "MD013",  # Line length — we don't hardwrap markdown.
+  "MD033",  # Inline HTML — needed for badge embeds.
+]
+respect_gitignore = true
+exclude = [
+  ".git",
+  ".vale",
+  "tmp",
+  "vendor",
+  ".devtools",
+  ".claude",
+  "bin",
+  "coverage",
+  "logs",
+  "spikes",
+  "apm_modules",
+  ".claude/skills/*/SKILL.md",
+  "CODEOWNERS",
+  "LICENSE",
+]
+
+# The pull request template opens at level 2 instead, so MD041 comes off
+# for that path: GitHub renders the pull request title above the body,
+# and a level 1 heading inside the template would repeat it.
+[per-file-ignores]
+# OKF indexes use star markers and docs use named top-level sections.
+"docs/index.md" = ["MD004"]
+"docs/*.md" = ["MD025"]
+".github/pull_request_template.md" = ["MD041"]
+
+[MD003]
+style = "atx"
+
+[MD004]
+style = "dash"
+
+[MD025]
+front_matter_title = ""
+
+[MD048]
+style = "backtick"
