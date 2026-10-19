@@ -10,5 +10,9 @@
 /go.mod         @tbhb
 /go.sum         @tbhb
 /vendor/        @tbhb
+/.golangci.yml   @tbhb
+/.go-arch-lint.yml @tbhb
+/.testcoverage.yml @tbhb
+/.gremlins.yaml  @tbhb
 /mise.toml      @tbhb
 /mise.lock      @tbhb

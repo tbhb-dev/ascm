@@ -1,0 +1,149 @@
+---
+# Supply-chain and secret scanners. Three jobs: gitleaks walks the full
+# commit history against its bundled rule set, so a
+# credential committed anywhere in the repo's past fails the gate; govulncheck
+# and gomodscan run with SARIF output and upload each result to GitHub Code
+# Scanning under its own category (govulncheck over the call graph, gomodscan
+# over the vendored module set: retraction, deprecation, and OSV
+# malicious-package checks).
+#
+# Triggers cover pull requests and pushes to `main` -- the pushes seed the
+# Code Scanning baseline that pull-request diffs compare against -- plus a
+# daily cron that catches rules added to gitleaks, and advisories published
+# against already-merged dependencies, after the pull request that added
+# them. The SARIF jobs surface findings in the Security tab rather than
+# failing the run, so a warning-level deprecation does not gate a pull
+# request. The blocking gates are gitleaks here and govulncheck in `ci.yml`.
+#
+# The gitleaks gate is the shared `devtools:gitleaks` task, which pins the
+# binary through the vendored payload and asserts the walk reached a commit
+# -- gitleaks otherwise exits 0 on a git failure and an empty scan reads as
+# a clean one. Each Go job installs the pinned go through a SHA-pinned
+# jdx/mise-action and invokes the matching `devtools:*-sarif` mise task, so
+# the scan command stays the single source of truth shared with local runs.
+
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "26 6 * * *"
+
+permissions:
+  contents: read
+
+# See ci.yml: without this a pin can move without its lockfile entry.
+env:
+  MISE_LOCKED: "1"
+  MISE_TASK_RUN_AUTO_INSTALL: "0"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so gitleaks scans every commit's diff, not just
+          # the checkout tip.
+          fetch-depth: 0
+          # The task scans the history reachable from HEAD. On a pull
+          # request GitHub checks out a synthetic merge commit by default,
+          # which carries a signature and an author line no contributor
+          # wrote. Checking out the pull request head ends the scan range
+          # at the commits the author pushed. A push or a dispatch has no
+          # pull request, so it falls back to the commit that triggered
+          # the run.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      # Installs gitleaks at the version and digest the vendored payload
+      # pins, the same way every other gate here resolves its binary.
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: gitleaks
+
+      - name: Scan for committed secrets
+        run: mise run devtools:gitleaks
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: go
+
+      - name: Run govulncheck (SARIF)
+        run: mise run devtools:vuln-sarif govulncheck.sarif
+
+      - name: Upload govulncheck SARIF
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
+
+  gomodscan:
+    name: gomodscan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: go
+
+      - name: Run gomodscan (SARIF)
+        run: mise run devtools:gomodscan-sarif gomodscan.sarif
+
+      - name: Upload gomodscan SARIF
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        with:
+          sarif_file: gomodscan.sarif
+          category: gomodscan

@@ -1,0 +1,217 @@
+---
+# Quality gates for ascm: lint, Go tests on Linux and macOS, coverage,
+# reachable vulnerabilities, and drift in the payload and Go dependencies.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A lockfile only binds a version it has already seen. Without this, moving
+# a pin in mise.toml and leaving mise.lock alone makes mise fetch the new
+# version, compute a fresh digest, and rewrite the lockfile in place -- so a
+# Renovate PR that touched only the manifest would go green while the
+# committed digests drifted from the pins under review. MISE_LOCKED makes
+# that a hard failure instead.
+env:
+  MISE_LOCKED: "1"
+  MISE_TASK_RUN_AUTO_INSTALL: "0"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      # Full history: the leak scan below reads every commit a pull
+      # request adds, and a shallow clone is refused as incomplete.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Installs every tool the mise config pins -- vendir, go and the
+      # rest from mise.toml, the baseline from the vendored conf.d drop-in
+      # -- at the version and digest recorded in the lockfile beside each
+      # config.
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+
+      # Resyncs the devtools payload in place from vendir.yml, ignoring the
+      # lock's stored SHAs, and fails on any difference from the committed
+      # tree. That catches a vendored file edited in place, a sync nobody
+      # committed, and a manifest bump whose vendir.lock.yml is stale. The
+      # local check-vendored task runs the same in-place resync, so run it on
+      # a tree whose payload changes are staged.
+      - name: Check the vendored payload
+        run: mise run devtools:check-vendored
+
+      # mise installs the vale binary but does not fetch the style packages
+      # .vale.ini declares.
+      - name: Sync Vale styles
+        run: mise run install-tools
+
+      - name: Lint
+        run: mise run lint
+
+      # The tree scan in `lint` sees only the checkout. This reads every
+      # commit, message, and author line the pull request adds, so a value
+      # committed and removed again within the branch still fails. CI has no
+      # private literals, so this runs the publishable patterns only.
+      - name: Scan the pull request for leaks
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Scan source commits rather than GitHub's synthetic merge signature.
+        run: mise run lint-leaks -- --range "${BASE_SHA}..${HEAD_SHA}"
+
+      - name: Test the leak check
+        run: bats .devtools/scripts/check-leaks.bats
+
+  test-matrix:
+    name: "test (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+    steps:
+      - name: Harden the runner
+        if: runner.os == 'Linux'
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The docs and skill suites need the full pinned toolchain.
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+
+      - name: Check docs, skills, and Go tests
+        run: mise run check
+
+  # The matrix job reports as `test (ubuntu-24.04)` and `test (macos-15)`.
+  # This job owns the plain name `test`, so the required-check list names
+  # one check and stays stable when the matrix changes. `if: always()` keeps
+  # it running after a failed slot, and anything but `success` -- failure,
+  # cancelled, or skipped -- fails it.
+  test:
+    name: test
+    if: always()
+    needs: test-matrix
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every matrix leg to pass
+        env:
+          RESULT: ${{ needs.test-matrix.result }}
+        run: |
+          if [[ "${RESULT}" != "success" ]]; then
+            echo "the test matrix finished as ${RESULT}" >&2
+            exit 1
+          fi
+
+  vuln:
+    name: vuln
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: go
+
+      - name: Run govulncheck
+        run: mise run vuln
+
+  vendor-check:
+    name: vendor-check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: go vendir
+
+      - name: Check the vendored payload
+        run: mise run devtools:check-vendored
+
+      - name: Check vendor drift
+        run: mise run vendor-check
+
+  coverage:
+    name: cover-go-check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up the toolchain
+        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+        with:
+          # renovate: datasource=github-releases depName=jdx/mise
+          version: 2026.10.9
+          install_args: go
+
+      - name: Measure coverage
+        run: mise run cover-go
+
+      - name: Check coverage floors
+        run: mise run cover-go-check

@@ -192,9 +192,23 @@ run = "mise run devtools:mutate-go"
 description = "Run devtools:vendor"
 run = "mise run devtools:vendor"
 
+# Local workaround for tbhb-dev/devtools#182: detect untracked vendor files.
+# Capture them before regeneration too, since go mod vendor removes stray files.
 [tasks.vendor-check]
-description = "Run devtools:vendor-check"
-run = "mise run devtools:vendor-check"
+description = "Check that vendor/, go.mod, and go.sum are in sync"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+untracked_before=$(git ls-files --others --exclude-per-directory=.gitignore -- go.mod go.sum vendor/)
+go mod tidy
+go mod vendor
+untracked_after=$(git ls-files --others --exclude-per-directory=.gitignore -- go.mod go.sum vendor/)
+if [[ -n $untracked_before || -n $untracked_after ]] || ! git diff --exit-code -- go.mod go.sum vendor/; then
+  printf '%s\n' "$untracked_before" "$untracked_after" | sort -u >&2
+  echo "vendor drift detected; run 'mise run vendor' and commit" >&2
+  exit 1
+fi
+'''
 
 [tasks.lint-go-fmt]
 description = "Check Go formatting"

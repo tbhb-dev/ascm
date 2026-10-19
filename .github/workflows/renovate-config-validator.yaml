@@ -1,0 +1,32 @@
+---
+# PR gate that catches broken Renovate config before it lands on main.
+# The cron Renovate workflow only runs on schedule, so a malformed config
+# on main can sit unnoticed until the next firing.
+#
+# Delegates to the shared reusable workflow in tbhb-dev/devtools,
+# which runs renovate-config-validator. Pinned by commit SHA; the trailing tag comment marks the matching release for
+# Renovate.
+name: Validate Renovate configuration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**renovate.json5"
+  pull_request:
+    paths:
+      # Catch nested renovate configs too if/when subprojects appear.
+      - "**renovate.json5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    permissions:
+      contents: read
+    # yamllint disable-line rule:line-length
+    uses: tbhb-dev/devtools/.github/workflows/renovate-config-validator.yaml@7a880f49f2bfc912f757eda4e320168b8c8fa855 # v0.12.0
+    with:
+      config_path: .github/renovate.json5

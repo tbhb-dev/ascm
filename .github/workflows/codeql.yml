@@ -1,0 +1,71 @@
+---
+# CodeQL static analysis for the Go source. Runs on every pull request,
+# every push to `main`, and weekly so the analysis re-evaluates `main`
+# against newly published query updates even when nothing in the tree
+# changed. Results upload to the repository's code-scanning dashboard as
+# SARIF.
+#
+# Go builds with CodeQL autobuild; the vendored module graph lets
+# `go build ./...` resolve without network fetches. The analysis runs the
+# `security-extended` query suite, which widens the security ruleset without
+# pulling in the code-quality queries that would overlap golangci-lint.
+
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Sunday 03:39 UTC. Off-peak and off the top of the hour
+    # so the run avoids the busiest scheduler slots.
+    - cron: "39 3 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: analyze (go)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pin the Go toolchain to the version in go.mod so autobuild
+      # builds with it instead of the CodeQL bundle's older Go.
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: go
+          build-mode: autobuild
+          queries: security-extended
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: "/language:go"

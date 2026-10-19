@@ -67,3 +67,21 @@ Change the source configuration and regenerate outputs through vendir or APM. Ke
 Sign commits as `tbhb-agent`. End each commit message with an `Assisted-by` trailer followed by a `Signed-off-by` trailer. Run `mise run lint-commit-msg` on `COMMIT_AGENTMSG` before committing through the hooks.
 
 Use the agent GitHub account for git network operations and GitHub commands. Post PR reviews only through `gh-reviewer`, which uses `tbhb-agent-reviewer`.
+
+## Workflows
+
+`ci.yml` runs on pull requests, pushes to `main`, and manual dispatch. It checks lint on Linux and runs Go tests on Linux and macOS. Separate jobs enforce the coverage floors, scan reachable vulnerabilities, and check payload and Go vendor drift. The `test` summary requires every matrix slot to pass.
+
+`security.yml` runs on pull requests and pushes to `main`. It also runs daily at 06:26 Coordinated Universal Time (UTC) and on manual dispatch. `gitleaks` scans history through the PR head on pull requests. The Go scanners upload reports for reachable vulnerabilities and dependencies in `vendor/`.
+
+`scheduled.yml` runs daily at 04:17 UTC and on manual dispatch. It runs Go mutation testing and uploads the coverage profile.
+
+`codeql.yml` analyzes Go on pull requests and pushes to `main`. It also runs on Sundays at 03:39 UTC and on manual dispatch.
+
+`lint-codeowners.yml` runs on pull requests only and calls the shared CODEOWNERS check.
+
+`lint-workflows.yml` runs when a pull request or a push to `main` changes a workflow. Manual dispatch runs it too.
+
+`renovate-config-validator.yaml` runs when a pull request or a push to `main` changes a Renovate configuration. It also supports manual dispatch.
+
+`renovate.yaml` runs hourly on weekdays and every two hours on weekends, at minute 11. Manual dispatch can select debug logging. It uses the Renovate App credentials to update dependencies.
