@@ -29,6 +29,14 @@ func TestRun(t *testing.T) {
 		{name: "short help", args: []string{"-h"}, stdout: "Usage: ascm"},
 		{name: "long help", args: []string{"--help"}, stdout: "Usage: ascm"},
 		{name: "no arguments", code: 2, stderr: "ascm: expected --version or --help"},
+		{
+			name:   "version false",
+			args:   []string{"--version=false"},
+			code:   2,
+			stderr: "ascm: expected --version or --help",
+		},
+		{name: "short help false", args: []string{"-h=false"}, code: 2, stderr: "ascm: expected --version or --help"},
+		{name: "flag terminator", args: []string{"--"}, code: 2, stderr: "ascm: expected --version or --help"},
 		{name: "unknown flag", args: []string{"--bogus"}, code: 2, stderr: "flag provided but not defined: -bogus"},
 		{name: "positional", args: []string{"commit"}, code: 2, stderr: "ascm: expected --version or --help"},
 		{

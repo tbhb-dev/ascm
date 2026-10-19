@@ -27,7 +27,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if err := flags.Parse(args); err != nil {
 		return usageExit
 	}
-	if flags.NArg() != 0 || len(args) == 0 {
+	if flags.NArg() != 0 || (!*version && !*help && !*shortHelp) {
 		fmt.Fprintln(stderr, "ascm: expected --version or --help")
 		flags.Usage()
 		return usageExit
@@ -37,9 +37,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		flags.Usage()
 		return 0
 	}
-	if *version {
-		info := buildmeta.Get()
-		fmt.Fprintf(stdout, "ascm %s (commit %s, date %s)\n", info.Version, info.Commit, info.Date)
-	}
+	info := buildmeta.Get()
+	fmt.Fprintf(stdout, "ascm %s (commit %s, date %s)\n", info.Version, info.Commit, info.Date)
 	return 0
 }
