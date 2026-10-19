@@ -1,0 +1,6 @@
+---
+engine: tree-sitter
+scopes:
+  - expr: |
+      ((comment) @comment
+        (#not-eq? @comment "// SPDX-License-Identifier: Apache-2.0"))

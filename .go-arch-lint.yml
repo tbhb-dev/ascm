@@ -2,10 +2,10 @@
 # go-arch-lint configuration. Enforces directional dependencies between
 # top-level components. The compiler already prevents cycles and
 # cross-module imports; this catches the intra-project layering rules the
-# compiler doesn't (e.g., "cmd may depend on internal, but not the
+# compiler doesn't (e.g., "cmd may depend on buildmeta, but not the
 # reverse").
 #
-# Scaffold: today the only components are `cmd` and `internal/**`. As
+# Scaffold: today the only components are `cmd` and `buildmeta`. As
 # `internal/` gains sub-packages worth fencing (handlers vs services,
 # domain vs infrastructure, etc.), add finer-grained components and the
 # `mayDependOn` rules between them here.

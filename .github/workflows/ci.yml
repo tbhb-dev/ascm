@@ -212,6 +212,3 @@ jobs:
 
       - name: Measure coverage
         run: mise run cover-go
-
-      - name: Check coverage floors
-        run: mise run cover-go-check

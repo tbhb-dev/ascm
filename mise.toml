@@ -17,7 +17,7 @@ uv = "0.12.23"
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
 DEVTOOLS_GO_MODULES_MODE = "vendor"
 DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\nbin/\ncoverage/\ntmp/\nspikes/\n.vale/"
-DEVTOOLS_PROSE_GLOB = "*.md"
+DEVTOOLS_PROSE_GLOB = "*.{md,go}"
 
 [task_config]
 includes = [
@@ -115,6 +115,7 @@ extends = "devtools:lint"
 run = [
   "mise run devtools:check-vendored",
   "mise run devtools:check-pins",
+  "mise run devtools:check-toolchain",
   "mise run devtools:lint-apm",
   "mise run devtools:lint-leaks",
   "mise run devtools:check-leak-hook",

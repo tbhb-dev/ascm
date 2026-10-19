@@ -1,7 +1,7 @@
 ---
 type: Architecture Overview
 title: Architecture overview
-description: Draft summary of the ledger and workflow layers.
+description: Draft summary of the planned ledger and workflow layers.
 tags: [ascm, architecture]
 status: draft
 generated: { by: "codex:gpt-6.1-sol", at: "2026-10-18" }
@@ -9,8 +9,8 @@ generated: { by: "codex:gpt-6.1-sol", at: "2026-10-18" }
 
 # Architecture overview
 
-The design has two layers. `ledger` imports nothing else in the module. `workflow` builds on `ledger` to run git and GitHub workflows.
+Plans for ascm call for two layers. In this design, `ledger` would import nothing else in the module, and `workflow` would build on `ledger` to run git and GitHub workflows.
 
-`cmd/ascm` prints usage and version output. Its dependency, `internal/buildmeta`, resolves linker metadata with a runtime build-info fallback. Neither layer has a package yet.
+The binary has neither layer yet. `cmd/ascm` prints only usage and build metadata, and there is no `ledger` or `workflow` package. Its dependency, `internal/buildmeta`, resolves linker metadata with a runtime build-info fallback.
 
 The full architecture design is forthcoming.

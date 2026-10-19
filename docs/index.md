@@ -8,7 +8,7 @@ Plans for ascm (agent source control management) call for one Go binary to run c
 
 # Architecture overview
 
-* [Architecture overview](architecture.md) - Draft summary of the ledger and workflow layers.
+* [Architecture overview](architecture.md) - Draft summary of the planned ledger and workflow layers.
 
 # Command reference
 

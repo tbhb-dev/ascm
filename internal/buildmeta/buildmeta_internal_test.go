@@ -10,7 +10,7 @@ import (
 
 // TestResolveVersion drives each branch of the runtime-fallback
 // chain so mutation testing doesn't find a surviving conditional flip
-// in the init-time logic. The cases pair an ldflags input with a
+// in the init-time logic. The cases pair a linker flag input with a
 // hand-rolled readBuildInfo result and assert the resolved version.
 func TestResolveVersion(t *testing.T) {
 	t.Parallel()

@@ -1,10 +1,3 @@
----
-type: Pull Request Template
-title: Pull request template
-description: Sections for a pull request description.
-generated: { by: "codex:gpt-6.1-sol", at: "2026-10-18" }
----
-
 <!-- Every section below is required. Replace each comment with prose. A section still holding its comment reads as unfilled, and the automated checks treat it that way. -->
 
 ## Summary

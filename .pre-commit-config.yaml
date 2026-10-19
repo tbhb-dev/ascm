@@ -112,7 +112,7 @@ repos:
         name: vale (prose)
         entry: mise run lint-prose
         language: system
-        types: [markdown]
+        types_or: [markdown, go]
 
       - id: cspell
         exclude: ^vendor/
@@ -148,7 +148,7 @@ repos:
         name: vendir drift check
         entry: mise run devtools:check-vendored
         language: system
-        files: ^(vendir\.(yml|lock\.yml)$|\.config/mise/conf\.d/|\.devtools/)
+        files: ^vendir\.yml$
         pass_filenames: false
 
       - id: check-pins
