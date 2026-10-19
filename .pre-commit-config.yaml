@@ -3,6 +3,8 @@ default_stages: [pre-commit, pre-push]
 
 # Hooks never touch vendored third-party code; that source is reviewed at PR
 # time as part of vendor-check, not reformatted to match this repo's style.
+# vendor/ stays out of this global exclusion so the gomodscan hook sees
+# vendored dependency changes; each hook that reads files excludes it.
 exclude: |
   (?x)^(bin/|coverage/|tmp/|logs/|spikes/|apm_modules/|\.devtools/|\.config/mise/|\.claude/|\.vale/
   |vendir\.lock\.yml$|apm\.lock\.yaml$)
@@ -20,13 +22,21 @@ repos:
   - repo: builtin
     hooks:
       - id: check-case-conflict
+        exclude: ^vendor/
       - id: check-executables-have-shebangs
+        exclude: ^vendor/
       - id: check-merge-conflict
+        exclude: ^vendor/
       - id: check-symlinks
+        exclude: ^vendor/
       - id: end-of-file-fixer
+        exclude: ^vendor/
       - id: fix-byte-order-marker
+        exclude: ^vendor/
       - id: mixed-line-ending
+        exclude: ^vendor/
       - id: trailing-whitespace
+        exclude: ^vendor/
 
   # The shared hooks: the commit-msg gates, the post-commit hook that deletes
   # the COMMIT_AGENTMSG draft once a commit lands, guard-markdown, and the
@@ -45,13 +55,25 @@ repos:
       - id: cspell-commit-msg
       - id: clear-commit-agentmsg
       - id: guard-markdown
+        exclude: ^vendor/
       - id: leaks-staged
+        exclude: ^vendor/
       - id: leaks-commit-msg
       - id: leaks-pre-push
+      - id: gomodscan
 
   - repo: local
     hooks:
+      - id: go-fmt
+        exclude: ^vendor/
+        name: go format check
+        entry: mise run lint-go-fmt
+        language: system
+        types: [go]
+        pass_filenames: false
+
       - id: ryl
+        exclude: ^vendor/
         name: ryl
         entry: mise run devtools:lint-yaml
         language: system
@@ -86,18 +108,21 @@ repos:
         pass_filenames: false
 
       - id: lint-prose
+        exclude: ^vendor/
         name: vale (prose)
         entry: mise run lint-prose
         language: system
         types: [markdown]
 
       - id: cspell
+        exclude: ^vendor/
         name: cspell
         entry: mise run devtools:lint-spelling
         language: system
         pass_filenames: false
 
       - id: rumdl
+        exclude: ^vendor/
         name: rumdl
         entry: mise run devtools:lint-markdown
         language: system

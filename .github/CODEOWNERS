@@ -9,5 +9,6 @@
 /.github/       @tbhb
 /go.mod         @tbhb
 /go.sum         @tbhb
+/vendor/        @tbhb
 /mise.toml      @tbhb
 /mise.lock      @tbhb

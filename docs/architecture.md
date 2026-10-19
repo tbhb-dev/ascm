@@ -11,4 +11,6 @@ generated: { by: "codex:gpt-6.1-sol", at: "2026-10-18" }
 
 The design has two layers. `ledger` imports nothing else in the module. `workflow` builds on `ledger` to run git and GitHub workflows.
 
+`cmd/ascm` prints usage and version output. Its dependency, `internal/buildmeta`, resolves linker metadata with a runtime build-info fallback. Neither layer has a package yet.
+
 The full architecture design is forthcoming.

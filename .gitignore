@@ -21,3 +21,5 @@ tmp/
 /bin/
 /coverage/
 coverage.out
+coverage.xml
+coverage.covdata*/

@@ -11,3 +11,4 @@ apm.lock.yaml
 vendir.lock.yml
 # Generated dependency locks from mise.
 .config/mise/locks/
+vendor/

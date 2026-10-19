@@ -12,9 +12,11 @@ generated: { by: "codex:gpt-6.1-sol", at: "2026-10-18" }
 
 ascm (agent source control management) is one Go binary that runs coding agents' git and GitHub workflows (commit, PR, merge, review, issues, and comments). Each workflow starts as a draft, then moves through launched reviews and gates. It records content-bound receipts in git refs and writes verifiable attribution trailers. Every commit traces back to the agent sessions that wrote and reviewed it, including the session that merged it.
 
-P1 sets up development tools and draft docs. It has no Go source or module yet.
+The command-line tool prints usage and build metadata. The workflow design remains a draft.
 
 ## Layout
+
+`cmd/ascm/` holds the command-line entry point and its tests. `internal/buildmeta/` resolves version metadata from linker flags or runtime build info.
 
 `docs/` holds the OKF docs bundle. `scripts/okf-check.py` checks its format and the Markdown frontmatter across the repository.
 
@@ -30,7 +32,17 @@ Read `mise.toml` before trusting it. In each fresh worktree, run `mise trust`, t
 | --- | --- |
 | `mise run devtools:apm-sync` | Deploy agent tooling |
 | `mise run lint` | Check source gates |
-| `mise run check` | Check docs and test the local skills |
+| `mise run check` | Check docs, local skills, and Go coverage |
+| `mise run build` | Build `bin/ascm` with version metadata |
+| `mise run test-go` | Run the Go tests |
+| `mise run test-go-race` | Run the Go tests with the race detector |
+| `mise run cover-go` | Measure coverage and enforce its floors |
+| `mise run cover-go-check` | Check the existing coverage profile |
+| `mise run lint-go-all` | Run the Go analysis gates |
+| `mise run lint-go-fmt` | Check Go formatting |
+| `mise run vuln` | Scan reachable Go vulnerabilities |
+| `mise run devtools:gomodscan` | Scan module dependencies |
+| `mise run mutate-go` | Run mutation testing |
 | `mise run test-skills` | Run the local skills' bats suites |
 | `mise run lint-skills` | Check skill prose and scripts |
 | `mise run check-docs` | Check the docs bundle and repository Markdown |
@@ -38,9 +50,9 @@ Read `mise.toml` before trusting it. In each fresh worktree, run `mise trust`, t
 
 ## Go toolchain
 
-The shared payload pins Go 1.27.2. Use `mise exec -- go version` to inspect it. P2 adds the module `github.com/tbhb-dev/ascm` with `go 1.27` and `toolchain go1.27.2`. P2 also adds local build and test tasks.
+The shared payload pins Go 1.27.2. Use `mise exec -- go version` to inspect it. Module `github.com/tbhb-dev/ascm` declares `go 1.27` and `toolchain go1.27.2`. Its packages use only the standard library.
 
-The root configuration includes the shared Go task file. P1's lint and check aggregates don't invoke its tasks.
+Root configuration includes the shared Go task file and exposes local build and test tasks. Go tool directives declare the analyzer dependencies in the module. `DEVTOOLS_GO_MODULES_MODE=vendor` loads them from the tracked `vendor/` tree. Commit `go.sum` with those generated sources. Run `mise run vendor` to refresh them and `mise run vendor-check` to check for drift.
 
 ## Conventions
 

@@ -25,6 +25,8 @@
     "coverage.out",
     "logs/**/*",
     "spikes/**/*",
+    "go.mod",
+    "go.sum",
     "vendor/**/*",
     "mise.lock",
     "dist/**/*",

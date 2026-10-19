@@ -15,6 +15,7 @@ uv = "0.12.23"
 
 [env]
 DEVTOOLS_LOCK_PLATFORMS = "linux-x64,macos-arm64"
+DEVTOOLS_GO_MODULES_MODE = "vendor"
 DEVTOOLS_GENERATED_PATHS = ".devtools/\n.config/mise/\nbin/\ncoverage/\ntmp/\nspikes/\n.vale/"
 DEVTOOLS_PROSE_GLOB = "*.md"
 
@@ -58,7 +59,7 @@ shell = "bash -c"
 description = "guard-markdown on every tracked Markdown file, then the OKF check on docs/ and on every other Markdown file"
 run = """
 command -v guard-markdown >/dev/null || { echo "guard-markdown not found; install it with: go install github.com/tbhb-dev/devtools/cmd/guard-markdown@v0.12.0" >&2; exit 1; }
-git ls-files -z '*.md' ':!:.devtools/**' ':!:.claude/**' ':!:apm_modules/**' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
+git ls-files -z '*.md' ':!:.devtools/**' ':!:.claude/**' ':!:apm_modules/**' ':!:vendor/**' | while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\\0' "$f"; done | xargs -0 guard-markdown
 uv run --no-project --with pyyaml python scripts/okf-check.py docs
 uv run --no-project --with pyyaml python scripts/okf-check.py --repo .
 """
@@ -68,8 +69,8 @@ description = "Run the bats suites of the repository-local agent skills"
 run = "bats .agents/skills/agent-commit/tests .agents/skills/agent-pr/tests .agents/skills/agent-merge-pr/tests"
 
 [tasks.check]
-description = "Check documentation and test the repository-local skills"
-depends = ["check-docs", "test-skills"]
+description = "Check documentation, local skills, and Go tests with coverage"
+depends = ["check-docs", "test-skills", "test-go", "test-go-race", "cover-go"]
 
 [tasks.lint-draft]
 extends = "devtools:lint-draft"
@@ -130,6 +131,8 @@ run = [
   "mise run devtools:lint-shell-fmt",
   "mise run lint-skills",
   "mise run devtools:lint-curl",
+  "mise run lint-go-all",
+  "mise run lint-go-fmt",
 ]
 
 [tasks.lint-leaks]
@@ -144,3 +147,55 @@ run = "mise run devtools:install-leak-hook"
 [tasks.lint-hooks]
 description = "Check the leak scan hook"
 run = "mise run devtools:check-leak-hook"
+
+[tasks.build]
+description = "Run devtools:build"
+run = "mise run devtools:build"
+
+[tasks.test-go]
+description = "Run devtools:test-go"
+run = "mise run devtools:test-go"
+
+[tasks.test-go-race]
+description = "Run devtools:test-go-race"
+run = "mise run devtools:test-go-race"
+
+[tasks.lint-go-all]
+description = "Run devtools:lint-go-all"
+run = "mise run devtools:lint-go-all"
+
+[tasks.lint-go-arch]
+description = "Run devtools:lint-go-arch"
+run = "mise run devtools:lint-go-arch"
+
+[tasks.lint-go-deadcode]
+description = "Run devtools:lint-go-deadcode"
+run = "mise run devtools:lint-go-deadcode"
+
+[tasks.cover-go]
+description = "Run devtools:cover-go"
+run = "mise run devtools:cover-go"
+
+[tasks.cover-go-check]
+description = "Run devtools:cover-go-check"
+run = "mise run devtools:cover-go-check"
+
+[tasks.vuln]
+description = "Run devtools:vuln"
+run = "mise run devtools:vuln"
+
+[tasks.mutate-go]
+description = "Run devtools:mutate-go"
+run = "mise run devtools:mutate-go"
+
+[tasks.vendor]
+description = "Run devtools:vendor"
+run = "mise run devtools:vendor"
+
+[tasks.vendor-check]
+description = "Run devtools:vendor-check"
+run = "mise run devtools:vendor-check"
+
+[tasks.lint-go-fmt]
+description = "Check Go formatting"
+run = "golangci-lint fmt --diff ./cmd/... ./internal/..."
