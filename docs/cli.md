@@ -16,4 +16,4 @@ The command-line tool supports these flags:
 | `--version` | Version, commit, and date on standard output | 0 |
 | `-h`, `--help` | Usage on standard output | 0 |
 
-No arguments, an unknown flag, or any positional argument prints an error and usage on standard error and returns exit code 2.
+No arguments, an unknown or malformed flag, an invalid flag value (`--version=yes`), any positional argument, a bare `--`, or only flags set to false (`--version=false`, `-h=false`) prints an error and usage on standard error and returns exit code 2.

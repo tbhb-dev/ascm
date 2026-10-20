@@ -12,4 +12,4 @@ Plans for ascm (agent source control management) call for one Go binary to run c
 
 # Command reference
 
-* [Command reference](cli.md) - Draft scope of the command-line tool.
+* [Command reference](cli.md) - Draft reference for usage and version output.
