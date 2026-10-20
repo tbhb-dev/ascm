@@ -38,6 +38,12 @@ func TestRun(t *testing.T) {
 		{name: "short help false", args: []string{"-h=false"}, code: 2, stderr: "ascm: expected --version or --help"},
 		{name: "flag terminator", args: []string{"--"}, code: 2, stderr: "ascm: expected --version or --help"},
 		{name: "unknown flag", args: []string{"--bogus"}, code: 2, stderr: "flag provided but not defined: -bogus"},
+		{
+			name:   "invalid boolean value",
+			args:   []string{"--version=yes"},
+			code:   2,
+			stderr: `invalid boolean value "yes" for -version`,
+		},
 		{name: "positional", args: []string{"commit"}, code: 2, stderr: "ascm: expected --version or --help"},
 		{
 			name:   "version and positional",
