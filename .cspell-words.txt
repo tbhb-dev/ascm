@@ -37,6 +37,7 @@ shellcheck
 shfmt
 shopt
 slotsdir
+strconv
 tbhb
 testcoverage
 textfmt
