@@ -15,6 +15,7 @@ tmp/
 !.vale/project/
 !.vale/config/
 .vale/config/*
+!.vale/config/views/
 !.vale/config/vocabularies/
 .vale/config/vocabularies/*
 !.vale/config/vocabularies/project/
