@@ -31,9 +31,9 @@ url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
 url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [[tools."go:github.com/tbhb-dev/devtools/cmd/guard-markdown"]]
-version = "0.12.0"
+version = "0.22.1"
 backend = "go:github.com/tbhb-dev/devtools/cmd/guard-markdown"
-specifiers = ["v0.12.0"]
+specifiers = ["v0.22.1"]
 
 [[tools.jq]]
 version = "1.8.2"
