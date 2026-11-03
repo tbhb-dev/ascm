@@ -195,14 +195,21 @@ class Renderer:
     pending: Pending | None = None
     code: list[str] | None = None
     marker: str = ""
+    # The last block is a list item with no blank line after it, so the next
+    # item joins that block instead of starting one.
+    in_list: bool = False
 
     def flush(self) -> None:
         """End the paragraph or list item being collected."""
         if self.pending is not None:
             text = inline(" ".join(self.pending.parts), self.refs)
-            self.blocks.append(
-                "\n".join(wrap(text, self.pending.first, self.pending.rest))
-            )
+            lines = "\n".join(wrap(text, self.pending.first, self.pending.rest))
+            item = bool(self.pending.first)
+            if item and self.in_list:
+                self.blocks[-1] += "\n" + lines
+            else:
+                self.blocks.append(lines)
+            self.in_list = item
         self.pending = None
 
     def feed_code(self, line: pr.Line, code: list[str]) -> None:
@@ -219,10 +226,12 @@ class Renderer:
             self.feed_code(line, self.code)
         elif line.code:
             self.flush()
+            self.in_list = False
             self.marker = pr.FENCE.findall(line.raw)[0]  # line.code opens a fence
             self.code = []
         elif pr.is_blank(line):
             self.flush()
+            self.in_list = False
         elif item := ITEM.fullmatch(line.text):
             self.flush()
             prefix = f"{item[1]}{item[2]} "
@@ -334,7 +343,9 @@ def renovate_body(body: str) -> str:
         row = dict(zip(header, map(plain_cell, table_cells(line)), strict=False))
         update = f" ({row['update']})" if row.get("update") else ""
         items.append(f"- {row['package']} {row.get('change', '')}".rstrip() + update)
-    return "\n".join(items) + "\n" if items else ""
+    # Renovate lists one dependency once per manager that found it.
+    unique = list(dict.fromkeys(items))
+    return "\n".join(unique) + "\n" if unique else ""
 
 
 def build_message(title: str, number: int, body: str) -> Message:
