@@ -1,0 +1,353 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+# Repo-level Python toolchain. This repository is primarily Go; the Python
+# here is repo-local tooling under tools/, and this file owns the gate
+# configuration. `package = false` keeps the root virtual: uv syncs the
+# dependency groups into .venv without trying to build the root.
+[project]
+name = "ascm-workspace"
+# Inert. Nothing builds or publishes from this table.
+version = "0"
+description = "Repo-local Python tooling for ascm"
+requires-python = ">=3.15"
+dependencies = []
+
+[dependency-groups]
+# The test group stands alone so a CI test matrix can sync it without the
+# lint tools.
+test = [
+  "hypothesis>=6.170.14",
+  "pytest>=9.2.0",
+  "pytest-cov>=7.1.0",
+  "pytest-randomly>=5.0.0",
+  "pytest-xdist>=3.8.0",
+]
+dev = [
+  { include-group = "test" },
+  "bandit>=1.9.4",
+  "complexipy>=8.3.0",
+  "jsonschema[format]>=4.26.0",
+  "pip-audit>=2.10.1",
+  "prek==0.5.9",
+  "pylint>=4.1.3",
+  "pyrefly>=1.4.0",
+  "pyyaml>=6.0.3",
+  "ruff>=0.17.3",
+  "types-jsonschema>=4.26.0.20261006",
+  "types-pyyaml>=6.0.12.20261030",
+  "vulture>=2.16",
+]
+
+[tool.uv]
+package = false
+# mise pins uv in [tools], but that pin binds only where mise resolves
+# PATH. An editor, a hook, or a contributor's own install runs whatever uv it
+# finds, and a resolver from another minor line rewrites uv.lock in ways
+# `uv lock --check` then reports as drift. This range is uv refusing to run
+# rather than the lockfile churning. Move it with the mise pin.
+required-version = ">=0.13.0,<0.14"
+
+[tool.complexipy]
+paths = ["tools"]
+# Sonar's default cognitive complexity ceiling, pinned so an upstream
+# default change cannot move the gate without a visible diff here.
+max-complexity-allowed = 15
+
+[tool.pylint.main]
+# Recursive discovery lets pylint walk test directories that hold no
+# __init__.py (pytest's importlib mode) instead of refusing non-packages.
+recursive = true
+
+[tool.pylint."messages control"]
+# pylint serves exactly one purpose here: its similarities checker, the
+# cross-file copy-paste detector nothing else in the toolchain provides.
+# Everything else it could report is ruff's and pyrefly's job, so the whole
+# catalog goes off and one message comes back on.
+disable = ["all"]
+enable = ["duplicate-code"]
+
+[tool.pylint.similarities]
+# Four matching lines counts as a clone: pylint's default, pinned so an
+# upstream default change cannot move the gate without a visible diff.
+min-similarity-lines = 4
+# Two modules importing the same names is convergence, not copy-paste, and
+# docstrings repeating a phrase share wording, not logic.
+ignore-imports = true
+ignore-docstrings = true
+
+[tool.pyrefly]
+project-includes = ["tools"]
+# The strict preset is pyrefly's hardest baseline: it demands parameter
+# annotations and refuses implicit Any. The errors table below names each
+# diagnostic kind at error severity on top of it, so the gate holds even if
+# a later release reshuffles what the preset turns on.
+preset = "strict"
+
+# Every error kind pyrefly knows, pinned to "error" except the two marked
+# below. The catalog is version-specific and pyrefly reorganizes it between
+# releases, and an unknown name here is a fatal config error, not a warning.
+# Regenerate the list on every pyrefly bump: naming an unknown kind makes
+# pyrefly print the full catalog as the accepted values.
+[tool.pyrefly.errors]
+abstract-method-call = "error"
+assert-type = "error"
+bad-argument-count = "error"
+bad-argument-type = "error"
+bad-assignment = "error"
+bad-class-definition = "error"
+bad-context-manager = "error"
+bad-dunder-all = "error"
+bad-function-definition = "error"
+bad-index = "error"
+bad-instantiation = "error"
+bad-keyword-argument = "error"
+bad-match = "error"
+bad-override = "error"
+bad-override-mutable-attribute = "error"
+bad-override-param-name = "error"
+bad-param-name-override = "error"
+bad-raise = "error"
+bad-return = "error"
+bad-singledispatch-register = "error"
+bad-specialization = "error"
+bad-typed-dict = "error"
+bad-typed-dict-key = "error"
+bad-unpacking = "error"
+column-type-mismatch = "error"
+coverage-missing = "error"
+coverage-partial = "error"
+deprecated = "error"
+direct-abstract-base-instantiation = "error"
+division-by-zero = "error"
+empty-body = "error"
+explicit-any = "error"
+implicit-abstract-class = "error"
+implicit-any = "error"
+implicit-any-attribute = "error"
+implicit-any-empty-container = "error"
+implicit-any-lambda = "error"
+implicit-any-parameter = "error"
+implicit-any-type-argument = "error"
+# Off, deliberately. This one is a style opinion rather than a type
+# error: it rejects `if not lines` and `x if match else y`, the
+# truthiness idiom PEP 8 endorses and ruff's own SIM rules push code
+# toward. Honoring it would mean spelling every emptiness check as an
+# explicit length or None comparison, which reads worse.
+implicit-bool = "ignore"
+implicit-import = "error"
+implicit-reexport = "error"
+implicitly-defined-attribute = "error"
+incompatible-comparison = "error"
+incompatible-overload-residual = "error"
+inconsistent-inheritance = "error"
+inconsistent-overload = "error"
+inconsistent-overload-default = "error"
+internal-error = "error"
+invalid-abstract-method = "error"
+invalid-annotation = "error"
+invalid-argument = "error"
+invalid-cast = "error"
+invalid-decorator = "error"
+invalid-inheritance = "error"
+invalid-literal = "error"
+invalid-overload = "error"
+invalid-param-spec = "error"
+invalid-pattern = "error"
+invalid-self-type = "error"
+invalid-sentinel = "error"
+invalid-super-call = "error"
+invalid-syntax = "error"
+invalid-type-alias = "error"
+invalid-type-checking-constant = "error"
+invalid-type-var = "error"
+invalid-type-var-tuple = "error"
+invalid-variance = "error"
+invalid-yield = "error"
+misplaced-ignore = "error"
+missing-argument = "error"
+missing-attribute = "error"
+missing-import = "error"
+missing-module-attribute = "error"
+missing-override-decorator = "error"
+missing-source = "error"
+missing-source-for-stubs = "error"
+missing-super-call = "error"
+name-mismatch = "error"
+no-access = "error"
+no-any-return = "error"
+no-any-return-explicit = "error"
+no-any-return-implicit = "error"
+no-matching-overload = "error"
+non-convergent-recursion = "error"
+non-exhaustive-match = "error"
+not-a-type = "error"
+not-async = "error"
+not-callable = "error"
+not-iterable = "error"
+not-required-key-access = "error"
+open-unpacking = "error"
+parse-error = "error"
+potential-bad-keyword-argument = "error"
+protocol-implicitly-defined-attribute = "error"
+pytorch-efficiency-lint-cuda-call = "error"
+pytorch-efficiency-lint-item-call = "error"
+pytorch-efficiency-lint-print-tensor = "error"
+pytorch-efficiency-lint-redundant-to-call = "error"
+read-only = "error"
+redefinition = "error"
+redundant-cast = "error"
+redundant-condition = "error"
+reveal-type = "error"
+string-as-iterable = "error"
+unannotated-attribute = "error"
+unannotated-parameter = "error"
+unannotated-protocol-member = "error"
+unannotated-return = "error"
+unbound-name = "error"
+unexpected-keyword = "error"
+unexpected-positional-argument = "error"
+unimported-directive = "error"
+unknown-argument-type = "error"
+unknown-attribute-type = "error"
+unknown-column = "error"
+unknown-name = "error"
+unknown-variable-type = "error"
+unnecessary-comparison = "error"
+unnecessary-type-conversion = "error"
+unreachable = "error"
+unreachable-match-case = "error"
+unresolvable-dunder-all = "error"
+unsafe-overlap = "error"
+unsupported = "error"
+unsupported-delete = "error"
+unsupported-dynamic-base = "error"
+unsupported-operation = "error"
+untyped-class-decorator = "error"
+untyped-function-decorator = "error"
+untyped-import = "error"
+# Off, deliberately. Discarding a return value is how large parts of the
+# standard library are meant to be used -- argparse's add_argument
+# returns an Action nobody keeps. Assigning each one to `_` would add
+# noise at every call site to satisfy a rule that catches nothing here.
+unused-call-result = "ignore"
+unused-coroutine = "error"
+unused-ignore = "error"
+unused-type-ignore = "error"
+useless-overload-body = "error"
+variance-mismatch = "error"
+
+[tool.coverage.run]
+# Measure branch coverage, not just line coverage: a 100% line score can
+# still leave one side of a conditional never taken.
+branch = true
+# Store paths relative to the project root so data files combine cleanly
+# across operating systems.
+relative_files = true
+
+[tool.coverage.report]
+# Nothing ships without a branch reaching it. Anything genuinely
+# unreachable belongs in exclude_also below with a reason, not behind a
+# lowered threshold.
+fail_under = 100
+show_missing = true
+exclude_also = [
+  # Bodies guarded by TYPE_CHECKING run only under a type checker.
+  "if TYPE_CHECKING:",
+  # assert_never marks a match arm the type checker has proven unreachable.
+  "assert_never\\(",
+  # The module-level entry guard fires only when a file runs as a script,
+  # which the test suite never does; it imports the module.
+  "if __name__ == \"__main__\":",
+]
+
+[tool.pytest]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--import-mode=importlib",
+]
+testpaths = ["tools"]
+
+[tool.importlinter]
+root_packages = ["tools"]
+
+# The interim modules build on each other in one direction only.
+[[tool.importlinter.contracts]]
+name = "interim layers: squash_merge, pull_request, agent_identity"
+type = "layers"
+layers = [
+  "tools.interim.squash_merge",
+  "tools.interim.pull_request",
+  "tools.interim.agent_identity",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  # COM812 and ISC001 conflict with the formatter; ruff itself warns when
+  # they are enabled alongside `ruff format`.
+  "COM812",
+  "ISC001",
+  # Docstrings belong where they carry signal, not on every module, class,
+  # and function as ritual. The pydocstyle shape rules (D2xx, D4xx) still
+  # apply to every docstring that does exist.
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+  # License headers ride the two-line SPDX comment the Go sources also
+  # carry; CPY001 only runs under preview mode anyway.
+  "CPY",
+  # Plain TODO comments are allowed; requiring an author (TD002), an issue
+  # link (TD003), or treating each one as a defect (FIX002) turns
+  # lightweight notes into ceremony.
+  "TD002",
+  "TD003",
+  "FIX002",
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = "Redundant on Python 3.14+: annotations are lazily evaluated (PEP 649/749)."
+
+[tool.ruff.lint.mccabe]
+# Sonar's default cyclomatic complexity ceiling.
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+# S101: asserts are pytest's assertion API. PLR2004: literal expected values
+# read better in tests than named constants. INP001: test dirs are
+# intentionally __init__-free under pytest's importlib mode. FBT001: a
+# parametrized expected value is data, not a behavior flag. S603 and S607:
+# driving the script under test as a subprocess is the point, since its
+# contract is the command line.
+"**/test_*.py" = ["S101", "PLR2004", "INP001", "FBT001", "S603", "S607"]
+
+# T201: tools/ holds the repo-local standalone scripts, which are
+# command-line tools whose output is the product, so print is the interface.
+# S603 and S607 join it because these scripts invoke git and other tools by
+# bare name on purpose: the pinned toolchain puts them on PATH, and
+# hardcoding an absolute path would defeat that. INP001: top-level scripts
+# are run by path and are not a package, so they carry no __init__.py.
+"tools/**/*.py" = ["T201", "S603", "S607", "INP001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.vulture]
+# Scope lives here rather than in the mise task so a bare `vulture` scans
+# the same tree the CI gate does. No confidence threshold is lowered. Add a
+# vulture_allowlist.py (and name it in `paths`) the first time something
+# hides its caller from vulture's static view, with a comment per entry
+# explaining where the real caller lives.
+paths = ["tools"]
+# pytest calls fixtures by name, which vulture cannot see.
+ignore_decorators = ["@pytest.fixture"]

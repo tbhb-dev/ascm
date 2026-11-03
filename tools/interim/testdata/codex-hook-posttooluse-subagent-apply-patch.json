@@ -1,0 +1,17 @@
+{
+  "session_id": "01a19ebf-adec-7210-8ba8-550921c2b924",
+  "turn_id": "turn-fake-2",
+  "agent_id": "01a19ebf-e15a-7612-a93f-033e919906de",
+  "agent_type": "default",
+  "transcript_path": "/fake/child-rollout.jsonl",
+  "cwd": "/fake/repo",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-5.6-luna",
+  "permission_mode": "default",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Add File: sub.txt\n+sub\n*** End Patch"
+  },
+  "tool_response": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nA sub.txt\n",
+  "tool_use_id": "call_fakeSub00001"
+}

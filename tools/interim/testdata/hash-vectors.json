@@ -1,0 +1,30 @@
+{
+  "algorithm": "SHA-256 over the exact input bytes; first 16 lowercase hexadecimal characters; prefix sha-256-64:",
+  "vectors": [
+    {
+      "input_utf8": "",
+      "input_hex": "",
+      "expected": "sha-256-64:e3b0c44298fc1c14"
+    },
+    {
+      "input_utf8": "abc",
+      "input_hex": "616263",
+      "expected": "sha-256-64:ba7816bf8f01cfea"
+    },
+    {
+      "input_utf8": "abc\n",
+      "input_hex": "6162630a",
+      "expected": "sha-256-64:edeaaff3f1774ad2"
+    },
+    {
+      "input_utf8": "session-001",
+      "input_hex": "73657373696f6e2d303031",
+      "expected": "sha-256-64:4e9bb9f661912a46"
+    },
+    {
+      "input_utf8": "会話-α",
+      "input_hex": "e4bc9ae8a9b12dceb1",
+      "expected": "sha-256-64:9fddf64c586059cb"
+    }
+  ]
+}

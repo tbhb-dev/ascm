@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Main quality gate. Bazel pins every tool and owns every gate: the
+# hermetic checks are cached `bazel test` targets, so `bazel test //...`
+# runs them all, and the few that need the network, Git history or the
+# GitHub API run as their own steps after it. A final `conclusion` job gives
+# branch protection one stable required check.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Bazel 9.x only, the version .bazelversion pins, on Linux, macOS and
+  # Windows (x86_64). The checks that need the network or GitHub's API run
+  # on Linux only; they do not depend on the OS.
+  bazel:
+    name: "bazel (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+        include:
+          - os: ubuntu-24.04
+            release: release
+          - os: macos-15
+            release: release
+          # Bazel runs the workspace status command without a shell on
+          # Windows, so the release config there uses the batch script.
+          - os: windows-2025
+            release: release-windows
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # harden-runner monitors Linux runners only.
+      - name: Harden the runner
+        if: runner.os == 'Linux'
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      # Full history: the release build stamps the version through
+      # `git describe`, and the history secret scan walks every commit.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # On Windows the rules' scripts run under the shell toolchain's Bash,
+      # MSYS2's on the hosted image. Only there: elsewhere Bazel would run
+      # genrule commands with it too.
+      - name: Point Bazel at Bash
+        if: runner.os == 'Windows'
+        run: echo 'BAZEL_SH=C:/msys64/usr/bin/bash.exe' >>"$GITHUB_ENV"
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.os }}
+          repository-cache: true
+          cache-save: ${{ github.event_name != 'pull_request' }}
+
+      # Some runfiles paths pass Windows' 260-character limit under the
+      # default output root in the runner's profile. The user bazelrc reaches
+      # every workspace the job tests. After setup-bazel, which writes that file
+      # too and leaves its last line unterminated, hence the leading newline.
+      - name: Shorten Bazel's output root
+        if: runner.os == 'Windows'
+        run: printf '\nstartup --output_user_root=C:/b\n' >>"$HOME/.bazelrc"
+
+      # Even under that root, a few paths in the Python runtime's packages
+      # pass 260 characters; Python reads them only with long paths enabled.
+      - name: Enable long paths
+        if: runner.os == 'Windows'
+        run: reg add 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem' //v LongPathsEnabled //t REG_DWORD //d 1 //f
+
+      # //... is every hermetic gate: the whole-tree lint tests (secrets in
+      # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
+      # workflows, shell, CODEOWNERS paths), the format check, Starlark
+      # lint, nogo during the build, the Go and Python tests and linters,
+      # the coverage floor, the docs bundle and REUSE checks, the import
+      # contracts, and the preset staleness test.
+      - name: Test
+        run: bazelisk test --config=ci //...
+
+      - name: Build the release binary
+        env:
+          RELEASE_CONFIG: ${{ matrix.release }}
+        run: bazelisk build "--config=${RELEASE_CONFIG}" //cmd/ascm
+
+      - name: Check that gazelle has nothing to change
+        if: runner.os == 'Linux'
+        run: bazelisk run //:gazelle -- -mode=diff
+
+      - name: Check that MODULE.bazel is tidy
+        if: runner.os == 'Linux'
+        run: |
+          bazelisk mod tidy
+          git diff --exit-code -- MODULE.bazel
+
+      # Git history is not a declared input, so the history scan runs
+      # outside the test graph; //:gitleaks_test covers the working tree.
+      - name: Scan Git history for secrets
+        if: runner.os == 'Linux'
+        run: bazelisk run //:gitleaks_history
+
+      # Advisories change without any input changing, so the audit is never
+      # a cached test.
+      - name: Audit the locked Python dependencies
+        if: runner.os == 'Linux'
+        run: bazelisk run //tools:pip_audit
+
+      # //:zizmor_test runs the offline audits; a token turns on the online
+      # ones, which need the network.
+      - name: Audit workflow security online
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          bazelisk run @tbhb_rules_zizmor//:zizmor --
+          --persona pedantic --no-progress "${GITHUB_WORKSPACE}/.github"
+
+      # //:codeowners_test checks that every pattern matches a path; owner
+      # and syntax validation needs GitHub's API.
+      - name: Check CODEOWNERS owners and syntax
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          errors="$(gh api \
+            "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${HEAD_SHA}" \
+            --jq '.errors')"
+          count="$(printf '%s' "${errors}" | jq 'length')"
+          if [ "${count}" -ne 0 ]; then
+            echo "::error::CODEOWNERS has ${count} owner or syntax error(s):"
+            printf '%s' "${errors}" |
+              jq -r '.[] | "  line \(.line): \(.kind): \(.message)"'
+            exit 1
+          fi
+
+  # One stable required check for branch protection. `if: always()` runs it
+  # even when a needed job failed, and skipped jobs count as failures here
+  # so a gate that silently did not run cannot pass.
+  # `needs: [bazel]` waits for every matrix leg, and the job's result is a
+  # failure if any leg failed.
+  conclusion:
+    name: conclusion
+    if: always()
+    needs: [bazel]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Fail if any needed job did not succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS"
+          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
+            echo "A required job did not succeed." >&2
+            exit 1
+          fi

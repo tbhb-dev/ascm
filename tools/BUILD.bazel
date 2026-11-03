@@ -1,0 +1,178 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+load("@bazel_skylib//rules:native_binary.bzl", "native_test")
+load("@tbhb_rules//lint:defs.bzl", "bats_test")
+load("@tbhb_rules//repo:defs.bzl", "repo_files")
+load(
+    "@tbhb_rules_python//:defs.bzl",
+    "bandit_test",
+    "complexipy_test",
+    "import_linter_test",
+    "pip_audit",
+    "pip_audit_test",
+    "pylint_test",
+    "pyrefly_test",
+    "pytest_test",
+    "python_tool",
+    "ruff_test",
+    "vulture_test",
+)
+load("//:vale_packages.bzl", "VALE_PACKAGES")
+
+repo_files()
+
+# The interim tooling (tools/interim: fcntl locks, git hook scripts,
+# install.sh) runs only on the macOS and Linux agent hosts and is replaced
+# after M1, so its tests don't run on Windows rather than being ported.
+NOT_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+# The Windows workspace status script (--config=release-windows), on
+# Windows only; //:bats_test covers the POSIX one.
+native_test(
+    name = "get_workspace_status_bat_test",
+    src = "get_workspace_status_test.bat",
+    out = "get_workspace_status_test.bat.exe_wrapper.bat",
+    data = ["get_workspace_status.bat"],
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+# The pinned git, isolated from the host's configuration, for the checks
+# that drive git.
+GIT_ENV = {
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_TEMPLATE_DIR": "",
+}
+
+# The Python gates for the repo-local tooling, each over a copy of the whole
+# tree with pyproject.toml as its configuration and the tools uv.lock pins.
+# Python files are found by suffix and by shebang. Formatting is checked by
+# //:format_test.
+
+ruff_test(
+    name = "ruff_test",
+    srcs = ["//:repo_files"],
+)
+
+# pyrefly's verdict depends only on the platform it analyses for, not the
+# host, so both runs are Linux-host only (CI's Linux leg), as in tbhb_rules:
+# one analyses as Linux, the other as Windows, so `sys.platform == "win32"`
+# branches are type-checked too. tools/interim is Unix-only by design
+# (fcntl), so it stays out of the Windows run.
+LINUX_ONLY = select({
+    "@platforms//os:linux": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
+pyrefly_test(
+    name = "pyrefly_test",
+    srcs = ["//:repo_files"],
+    args = [
+        "--python-platform",
+        "linux",
+    ],
+    target_compatible_with = LINUX_ONLY,
+)
+
+pyrefly_test(
+    name = "pyrefly_windows_test",
+    srcs = ["//:repo_files"],
+    args = [
+        "--python-platform",
+        "win32",
+    ],
+    exclude = ["tools/interim/*"],
+    target_compatible_with = LINUX_ONLY,
+)
+
+# Only the duplicate-code checker is on (pyproject.toml).
+pylint_test(
+    name = "pylint_test",
+    srcs = ["//:repo_files"],
+)
+
+vulture_test(
+    name = "vulture_test",
+    srcs = ["//:repo_files"],
+)
+
+complexipy_test(
+    name = "complexipy_test",
+    srcs = ["//:repo_files"],
+)
+
+# Tests are excluded: B101 flags every assert, and asserts are pytest's API.
+bandit_test(
+    name = "bandit_test",
+    srcs = ["//:repo_files"],
+    exclude = ["**/test_*.py"],
+)
+
+# The interim hook installer's tests (NOT_WINDOWS).
+bats_test(
+    name = "interim_bats_test",
+    srcs = ["//:repo_files"],
+    target_compatible_with = NOT_WINDOWS,
+    tests = ["tools/interim/install.bats"],
+)
+
+# Every test under tools/, at 100% branch coverage. All of them test interim
+# code, so the target doesn't run on Windows (NOT_WINDOWS). The tests drive git, so
+# the pinned git is on PATH, with the host's configuration switched off.
+pytest_test(
+    name = "pytest_test",
+    size = "medium",
+    srcs = ["//:repo_files"],
+    coverage = ["tools"],
+    # rules_js binaries (cspell) need BAZEL_BINDIR outside a build action.
+    env = GIT_ENV | {"BAZEL_BINDIR": "."},
+    # The interim PR and merge scripts run these against the repository's
+    # own configs, so their tests need them, and the Vale packages synced.
+    path_tools = [
+        "@tbhb_rules//lint/private/cspell",
+        "@tbhb_rules_cog//:cog",
+        "@tbhb_rules_git//:git",
+        "@tbhb_rules_rumdl//:rumdl",
+        "@tbhb_rules_vale//:vale",
+    ],
+    target_compatible_with = NOT_WINDOWS,
+    vale_packages = VALE_PACKAGES,
+)
+
+# The import contracts in pyproject.toml's [tool.importlinter]. No mutation
+# target: the only Python left here is interim code, which is not mutated.
+import_linter_test(
+    name = "import_linter_test",
+    srcs = ["//:repo_files"],
+)
+
+# Advisories change without any input changing, so the audit is a `bazel
+# run` target (CI runs it), plus a manual network test.
+pip_audit(
+    name = "pip_audit",
+)
+
+pip_audit_test(
+    name = "pip_audit_test",
+    srcs = ["//:repo_files"],
+)
+
+# The locked Python tools as executables, for //:bazel_env's shims (git
+# hooks and editors). Each runs from the current directory.
+[
+    python_tool(
+        name = tool,
+        tool = tool,
+        visibility = ["//:__pkg__"],
+    )
+    for tool in [
+        "pyrefly",
+        "python",
+        "ruff",
+        "uv",
+    ]
+]
