@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright Tony Burns
+
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // The presets track tbhb-dev/renovate-config's main branch, pinned by
+  // commit; Renovate bumps the pins (the "renovate-config" group).
+  extends: [
+    "github>tbhb-dev/renovate-config//default.json5#d37a5c70b41eda7cb0bd1b233839251f6b315068", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#d37a5c70b41eda7cb0bd1b233839251f6b315068", // main
+    "github>tbhb-dev/renovate-config//go.json5#d37a5c70b41eda7cb0bd1b233839251f6b315068", // main
+    "github>tbhb-dev/renovate-config//python.json5#d37a5c70b41eda7cb0bd1b233839251f6b315068", // main
+  ],
+
+  // ascm needs nothing beyond the presets: its Go module, Bazel pins and uv
+  // lock are all covered there.
+}

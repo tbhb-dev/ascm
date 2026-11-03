@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Thin caller for the shared self-hosted Renovate workflow. The credentials
+# (RENOVATE_CLIENT_ID, RENOVATE_PRIVATE_KEY) are tbhb-dev org secrets, passed
+# to the reusable workflow explicitly below.
+name: Renovate
+
+on:
+  schedule:
+    # Hourly on weekdays, every two hours on weekends. The minute is staggered
+    # per repo (ascm 17, rules 27, ops 37, afakt 47) so the runs do not
+    # collide.
+    - cron: "17 * * * 1-5"
+    - cron: "17 */2 * * 6,0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        description: "Log what Renovate would do, change nothing"
+        default: true
+      log_level:
+        type: choice
+        description: "Renovate log level"
+        options: [DEBUG, INFO]
+        default: DEBUG
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    uses: tbhb-dev/renovate-config/.github/workflows/renovate.yaml@d37a5c70b41eda7cb0bd1b233839251f6b315068  # main
+    with:
+      # Scheduled runs are real runs; manual runs default to a dry run.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      log_level: ${{ github.event_name == 'workflow_dispatch' && inputs.log_level || 'DEBUG' }}
+    secrets:
+      RENOVATE_CLIENT_ID: ${{ secrets.RENOVATE_CLIENT_ID }}
+      RENOVATE_PRIVATE_KEY: ${{ secrets.RENOVATE_PRIVATE_KEY }}
