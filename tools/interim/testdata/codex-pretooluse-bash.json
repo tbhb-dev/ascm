@@ -1,0 +1,14 @@
+{
+  "session_id": "session-raw",
+  "turn_id": "turn-raw",
+  "transcript_path": null,
+  "cwd": "/nonexistent/work",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-5.6-sol",
+  "permission_mode": "default",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "git status"
+  },
+  "tool_use_id": "exec-synthetic01"
+}

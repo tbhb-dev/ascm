@@ -1,0 +1,9 @@
+{
+  "session_id": "01a19ebf-adec-7210-8ba8-550921c2b924",
+  "transcript_path": "/fake/rollout.jsonl",
+  "cwd": "/fake/repo",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-5.6-sol",
+  "permission_mode": "default",
+  "source": "startup"
+}

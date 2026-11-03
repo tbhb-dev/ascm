@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Tony Burns
+
+---
+# Import contracts: the command sits on the internal packages, and
+# internal/buildmeta imports nothing of the module. Every package must belong
+# to a component.
+version: 3
+
+allow:
+  depOnAnyVendor: false
+  deepScan: false  # deep scanning runs the go command; the test has none
+
+components:
+  cmd: {in: cmd/*}
+  buildmeta: {in: internal/buildmeta}
+
+vendors:
+  cobra: {in: [github.com/spf13/cobra, github.com/spf13/cobra/**]}
+
+deps:
+  cmd:
+    mayDependOn: [buildmeta]
+    canUse: [cobra]
+  buildmeta:
+    mayDependOn: [buildmeta]  # a leaf; go-arch-lint rejects an empty list

@@ -1,0 +1,16 @@
+{
+  "conversationId": "conv-raw",
+  "modelName": "gemini-3.8-flash-low",
+  "workspacePaths": [
+    "/nonexistent/work"
+  ],
+  "stepIdx": 2,
+  "toolCall": {
+    "name": "write_file",
+    "args": {
+      "Path": "hello.txt",
+      "Content": "hi\n"
+    }
+  },
+  "error": ""
+}
