@@ -28,7 +28,7 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files")
-load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test")
+load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test", "gomutants_test")
 load("//:vale_packages.bzl", "VALE_PACKAGES")
 load("//tools/lint:linters.bzl", "golangci_lint_test")
 
@@ -135,6 +135,36 @@ go_mod_tidy_test(
     proxy = "@go_mod_proxy//:proxy",
 )
 
+# Mutation testing: every mutant gomutants makes of a package must be killed
+# by that package's tests. One cached run per package; by default every
+# package runs in full. For a diff-scope run, write the changes since a base
+# and point the flag at them:
+#
+#   bazel run @tbhb_rules//quality:mutation_changes -- --base origin/main --out .mutation/changes.json
+#   bazel test --@tbhb_rules//quality:changes=//:mutation_changes //:gomutants_test
+gomutants_test(
+    name = "gomutants_test",
+    cpus = 2,
+    go_mod = "go.mod",
+    go_sum = "go.sum",
+    proxy = "@go_mod_proxy//:proxy",
+    tests = [
+        "//cmd/ascm:ascm_test",
+        "//internal/buildmeta:buildmeta_test",
+    ],
+)
+
+# The changes file for a diff-scope mutation run: empty, so full scope,
+# unless mutation_changes has written one.
+filegroup(
+    name = "mutation_changes",
+    # buildifier: disable=constant-glob
+    srcs = glob(
+        [".mutation/changes.json"],
+        allow_empty = True,
+    ),
+)
+
 # Every file of the repository, for the whole-tree checks below. Each package
 # calls repo_files() too, so the chain covers the tree. Directories that hold
 # no source are ignored in REPO.bazel; these are the gitignored loose files
@@ -145,6 +175,7 @@ repo_files(
         ".bazelrc.user",
         ".coverage*",
         ".env*",
+        ".mutation/**",
         ".claude/settings.local.json",
         ".github/PULL_REQUEST_DRAFT.md",
         "coverage.*",

@@ -24,6 +24,8 @@ coverage.xml
 .hypothesis/
 # mutmut
 mutants/
+# mutation_changes: the changes file for diff-scope mutation runs
+.mutation/
 # cosmic-ray session databases
 *.sqlite
 

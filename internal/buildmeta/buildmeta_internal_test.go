@@ -5,6 +5,7 @@ package buildmeta
 
 import (
 	"runtime/debug"
+	"slices"
 	"testing"
 )
 
@@ -25,6 +26,13 @@ func TestResolve(t *testing.T) {
 		},
 	}
 
+	filled := Info{"v1.2.3", "abc123", "2026-01-02T03:04:05Z"}
+
+	// The same settings in reverse, the unrelated one first: each value
+	// must come from its own key, not from whichever setting comes first.
+	reordered := &debug.BuildInfo{Main: full.Main, Settings: slices.Clone(full.Settings)}
+	slices.Reverse(reordered.Settings)
+
 	tests := []struct {
 		buildInfo *debug.BuildInfo
 		name      string
@@ -33,8 +41,9 @@ func TestResolve(t *testing.T) {
 		ok        bool
 	}{
 		{nil, "no build info", defaults, defaults, false},
-		{full, "fills defaults", defaults, Info{"v1.2.3", "abc123", "2026-01-02T03:04:05Z"}, true},
+		{full, "fills defaults", defaults, filled, true},
 		{full, "keeps injected", Info{"1.0.0", "c", "d"}, Info{"1.0.0", "c", "d"}, true},
+		{reordered, "matches keys in any order", defaults, filled, true},
 		{
 			&debug.BuildInfo{Main: debug.Module{Version: "(devel)"}},
 			"devel ignored", defaults, defaults, true,

@@ -20,6 +20,7 @@ cmdlines
 cocogitto
 compgen
 complexipy
+cpus
 cuda
 cyclop
 deadcode
@@ -33,6 +34,7 @@ esac
 execpath
 exhaustruct
 extensionless
+filegroup
 findstr
 flatmap
 frontmatter
@@ -49,7 +51,9 @@ goheader
 golangci
 golines
 gomodguard
+gomutants
 GOPROXY
+gosec
 govet
 gpgsign
 hardwrap
