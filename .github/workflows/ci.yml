@@ -22,18 +22,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Bazel 9.x only, the version .bazelversion pins, on Linux, macOS and
-  # Windows (x86_64). The checks that need the network or GitHub's API run
-  # on Linux only; they do not depend on the OS.
+  # Bazel 9.x only, the version .bazelversion pins, on Linux (x86_64 and
+  # arm64), macOS (arm64) and Windows (x86_64). The checks that need the
+  # network or GitHub's API run on Linux only; they do not depend on the OS.
   bazel:
     name: "bazel (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-26, windows-2025]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
         include:
           - os: ubuntu-24.04
+            release: release
+          - os: ubuntu-24.04-arm
             release: release
           - os: macos-26
             release: release
@@ -74,6 +76,22 @@ jobs:
           disk-cache: ${{ github.workflow }}-${{ matrix.os }}
           repository-cache: true
           cache-save: ${{ github.event_name != 'pull_request' }}
+
+      # complexipy publishes no Python 3.15 wheel for Linux arm64, so uv builds
+      # it from source there with maturin, which needs a Rust toolchain. The
+      # runner has rustup but no default toolchain. Drop this step once a
+      # cp315 manylinux aarch64 wheel exists.
+      - name: Set up Rust for complexipy's source build
+        if: matrix.os == 'ubuntu-24.04-arm'
+        # rules' Python environment runs uv with its own HOME, so rustup and
+        # cargo learn where the toolchain lives from --repo_env.
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+          {
+            echo "common --repo_env=RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}"
+            echo "common --repo_env=CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}"
+          } >> .bazelrc.user
 
       # Some runfiles paths pass Windows' 260-character limit under the
       # default output root in the runner's profile. The user bazelrc reaches
