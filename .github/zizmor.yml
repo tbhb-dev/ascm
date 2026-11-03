@@ -10,3 +10,10 @@ rules:
     config:
       policies:
         "*": hash-pin
+  # tbhb-dev/renovate-config is pinned by commit to its main branch, which has
+  # no release tags by design; Renovate bumps the pins. Only the two caller
+  # workflows reference it.
+  stale-action-refs:
+    ignore:
+      - renovate.yaml
+      - renovate-config-validator.yaml
