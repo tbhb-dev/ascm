@@ -14,7 +14,7 @@ Bazel pins and runs every gate. [mise](https://mise.jdx.dev) only installs `baze
 bazelisk test //...
 ```
 
-`mise run check` runs the same command. Run one gate by its target, such as `bazelisk test //:vale_test`. `bazelisk query 'tests(//...)'` lists them. `bazelisk run //:format` formats the tree in place. The git hooks call the pinned tools through `.bazel_env/bin`, which `bazelisk run //:bazel_env` builds.
+Run one gate by its target, such as `bazelisk test //:vale_test`. `bazelisk query 'tests(//...)'` lists them. `bazelisk run //:format` formats the tree in place. The git hooks call the pinned tools through `.bazel_env/bin`, which `bazelisk run //:bazel_env` builds.
 
 The Bazel rules come from [tbhb-dev/rules](https://github.com/tbhb-dev/rules). To work against a local clone of it, add these lines to `.bazelrc.user`, which git ignores:
 

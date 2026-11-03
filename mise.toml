@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Tony Burns
 
-# Tool bootstrap only. Bazel pins and runs every gate: `mise run check` is
-# `bazel test //...`, the same command CI runs. The tasks below are thin
-# shortcuts to Bazel targets.
+# Tool bootstrap only. Bazel pins and runs every gate (`bazelisk test //...`,
+# the same command CI runs). The only tasks are the interim PR scripts.
 
 [settings]
 # Record resolved versions, URLs, and digests in mise.lock (committed).
@@ -30,18 +29,6 @@ _.path = [".bazel_env/bin"]
 bazelisk = "1.30.0"
 # Runs the interim attribution hooks and the interim PR script (uv run).
 uv = "0.13.6"
-
-[tasks.check]
-description = "Run every hermetic gate (bazel test //...)"
-run = "bazelisk test //..."
-
-[tasks.fmt]
-description = "Format the workspace in place (bazel run //:format)"
-run = "bazelisk run //:format"
-
-[tasks.env]
-description = "Build the bazel_env shims for the Bazel-pinned tools"
-run = "bazelisk run //:bazel_env"
 
 # Interim until the real PR tooling lands; see tools/interim/pull_request.py.
 # Usage: mise run pr -- check | create [--dry-run] | edit --pr N
