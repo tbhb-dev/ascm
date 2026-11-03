@@ -103,6 +103,18 @@ jobs:
           RELEASE_CONFIG: ${{ matrix.release }}
         run: bazelisk build "--config=${RELEASE_CONFIG}" //cmd/ascm
 
+      # A failed run's test logs, so a failure that does not recur can still
+      # be read.
+      - name: Keep the test logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: testlogs-${{ matrix.os }}
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          if-no-files-found: ignore
+
   # The repository-level checks, on Linux beside the bazel matrix, so they
   # don't wait behind the tests.
   repo:
