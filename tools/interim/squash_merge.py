@@ -416,11 +416,9 @@ def fetch(number: int) -> PullRequest:
     except ValueError as exc:
         stop(f"gh pr view returned something that is not JSON: {exc}")
     author = data.get("author")
-    login = str(author.get("login", "")) if isinstance(author, dict) else ""
+    who = cast("dict[str, object]", author) if isinstance(author, dict) else {}
     return PullRequest(
-        renovate=isinstance(author, dict)
-        and author.get("is_bot") is True
-        and RENOVATE in login,
+        renovate=who.get("is_bot") is True and RENOVATE in str(who.get("login", "")),
         title=str(data.get("title", "")),
         body=str(data.get("body") or ""),
         head=str(data.get("headRefOid", "")),
