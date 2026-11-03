@@ -22,18 +22,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Bazel 9.x only, the version .bazelversion pins, on Linux, macOS and
-  # Windows (x86_64). The checks that need the network or GitHub's API run
-  # on Linux only; they do not depend on the OS.
+  # Bazel 9.x only, the version .bazelversion pins, on Linux (x86_64 and
+  # arm64), macOS (arm64) and Windows (x86_64). The checks that need the
+  # network or GitHub's API run on Linux only; they do not depend on the OS.
   bazel:
     name: "bazel (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-26, windows-2025]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
         include:
           - os: ubuntu-24.04
+            release: release
+          - os: ubuntu-24.04-arm
             release: release
           - os: macos-26
             release: release
