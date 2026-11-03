@@ -19,6 +19,7 @@ exceptions:
   - CIDR
   - CLI
   - CPU
+  - CRLF
   - CSS
   - CSV
   - DCO
