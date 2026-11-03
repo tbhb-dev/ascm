@@ -494,6 +494,100 @@ def test_null_body_is_empty(tools: Tools) -> None:
     assert run_main("3")[0] == 0
 
 
+# ------------------------------------------------------------------ Renovate
+
+# The shape of a real Renovate body (tbhb-dev/ascm#6), trimmed, with its CRLF
+# line endings.
+RENOVATE_BODY = """\
+This PR contains the following updates:
+
+| Package | Update | Change |
+|---|---|---|
+| [macos](https://redirect.github.com/actions/runner-images) | major | `15` → `26` |
+
+---
+
+### Release Notes
+
+<details>
+<summary>actions/runner-images (macos)</summary>
+
+| Announcements |
+|---|
+| macOS 26 is now generally available |
+
+<table><tr><td>Kotlin</td><td>2.3.21</td></tr></table>
+
+</details>
+
+---
+
+### Configuration
+
+🚦 **Automerge**: Disabled by config.
+
+ - [ ] If you want to rebase/retry this PR, check this box
+""".replace("\n", "\r\n")
+RENOVATE_AUTHOR = {"is_bot": True, "login": "app/tbhb-dev-renovate"}
+
+
+def test_renovate_body_keeps_only_the_update_table() -> None:
+    assert sm.renovate_body(RENOVATE_BODY) == "- macos 15 → 26 (major)\n"
+
+
+def test_renovate_body_lists_every_row_and_tolerates_missing_columns() -> None:
+    body = (
+        "Intro.\n\n| Package | Change |\n|---|---|\n"
+        "| [a](https://x) | [`1` → `2`](https://y) |\n| b | `3` → `4` |\n"
+        "\nafter\n| Package | Update | Change |\n|---|---|---|\n| c | major | 5 |\n"
+    )
+    assert sm.renovate_body(body) == "- a 1 → 2\n- b 3 → 4\n"
+    assert sm.renovate_body("| Package |\n|---|\n| only |\n") == "- only\n"
+
+
+@pytest.mark.parametrize(
+    "body", ["", "No table here.\n", "| Name | Change |\n|---|---|\n| a | 1 |\n"]
+)
+def test_renovate_body_without_the_update_table_is_empty(body: str) -> None:
+    assert sm.renovate_body(body) == ""
+
+
+def test_renovate_body_with_an_empty_table_is_empty() -> None:
+    assert sm.renovate_body("| Package | Change |\n|---|---|\n\ntext\n") == ""
+
+
+def test_a_renovate_pr_merges_with_the_update_list(tools: Tools) -> None:
+    tools.view(
+        title="chore(deps): update dependency macos to v26",
+        body=RENOVATE_BODY,
+        author=RENOVATE_AUTHOR,
+    )
+    assert run_main("6")[0] == 0
+    assert tools.calls()[1]["stdin"] == "- macos 15 → 26 (major)\n"
+
+
+@pytest.mark.parametrize(
+    "author",
+    [
+        {"is_bot": False, "login": "app/tbhb-dev-renovate"},
+        {"is_bot": True, "login": "app/dependabot"},
+        {"login": "app/tbhb-dev-renovate"},
+        "app/tbhb-dev-renovate",
+        None,
+    ],
+)
+def test_only_the_renovate_app_gets_the_short_body(
+    tools: Tools, author: object
+) -> None:
+    tools.view(body="## Why\n\nBecause.\n", author=author)
+    assert run_main("6")[0] == 0
+    assert tools.calls()[1]["stdin"] == "Why\nBecause.\n"
+
+
+def test_gh_is_asked_for_the_author() -> None:
+    assert "author" in sm.VIEW_FIELDS.split(",")
+
+
 # ------------------------------------------------------------------ the agent
 
 
