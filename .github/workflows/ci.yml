@@ -77,6 +77,16 @@ jobs:
           repository-cache: true
           cache-save: ${{ github.event_name != 'pull_request' }}
 
+      # complexipy publishes no Python 3.15 wheel for Linux arm64, so uv builds
+      # it from source there with maturin, which needs a Rust toolchain. The
+      # runner has rustup but no default toolchain. Drop this step once a
+      # cp315 manylinux aarch64 wheel exists.
+      - name: Set up Rust for complexipy's source build
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
+
       # Some runfiles paths pass Windows' 260-character limit under the
       # default output root in the runner's profile. The user bazelrc reaches
       # every workspace the job tests. After setup-bazel, which writes that file
