@@ -1783,6 +1783,51 @@ def test_wrap_problems(body: str, lines: list[int]) -> None:
     assert pr.wrap_problems(scanned) == [(no, pr.WRAPPED) for no in lines]
 
 
+def ref(no: int, number: int) -> pr.Problem:
+    return (no, pr.BARE_REF_MESSAGE.format(number=number))
+
+
+def test_the_bare_reference_message_names_the_fix() -> None:
+    assert pr.BARE_REF_MESSAGE.format(number=7) == (
+        "#7 links to this repository's #7; write owner/repo#7, even for this repository"
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "problems"),
+    [
+        ("See #12.\n", [ref(1, 12)]),
+        ("(#3) and #4\n", [ref(1, 3), ref(1, 4)]),
+        ("- item #7\n", [ref(1, 7)]),
+        ("tbhb-dev/ascm#4 and tbhb-dev/renovate-config#2\n", []),
+        ("x.y#5 and a-b#6 and &#38; and path/#8\n", []),
+        ("`#9` in code\n", []),
+        ("```\n#10\n```\n", []),
+        ("[#11](https://example.com/11) and [#12][r]\n", []),
+        ("https://github.com/o/r/pull/13#14\n", []),
+        ("<!-- #15 -->\n", []),
+        ("## Why\n#16 here\n", [ref(2, 16)]),
+        ("issue#17 and #x and #\n", []),
+    ],
+)
+def test_ref_problems(body: str, problems: list[pr.Problem]) -> None:
+    scanned, _ = pr.scan(body.splitlines(), 1)
+    assert pr.ref_problems(scanned) == problems
+
+
+def test_a_bare_reference_fails_the_check_in_the_title_and_body() -> None:
+    text = BASE.replace("# fix: x\n", "# fix: x (#1)\n").replace("\nw\n", "\nsee #2\n")
+    found = structure(text)
+    assert ref(1, 1) in found
+    assert ref(5, 2) in found
+
+
+def test_the_passing_draft_has_no_bare_references() -> None:
+    _, body = pr.parse_frontmatter(FIXTURE.read_text())
+    scanned, _ = pr.scan(body.splitlines(), 1)
+    assert pr.ref_problems(scanned) == []
+
+
 def test_a_wrapped_draft_fails_the_check() -> None:
     text = BASE.replace("\nw\n", "\nline one\nline two\n")
     assert (5, pr.WRAPPED) in structure(text)

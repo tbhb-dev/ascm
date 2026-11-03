@@ -21,8 +21,8 @@ DRAFT defaults to .github/PULL_REQUEST_DRAFT.md. Every failure prints as
 ``cog verify`` accepts and that fits 72 characters (a squash merge turns it into
 a commit header), checks the H2 sections against
 .github/pull-request-sections.toml (names, order, required, word limits), rejects
-leftover HTML comments, and lints the description with vale, cspell and rumdl
-under the repository's own configs.
+leftover HTML comments and bare ``#N`` references, and lints the description
+with vale, cspell and rumdl under the repository's own configs.
 
 ``hook`` is the harnesses' PostToolUse entry point (payload on stdin). When the
 tool call wrote the draft it runs ``check``'s checks and, on problems, exits 2
@@ -99,6 +99,13 @@ RUMDL_LINE = re.compile(r"\S+?:(\d+):\d+: (.+)")
 CSPELL_LINE = re.compile(r"\S+?:(\d+):\d+ - (.+)")
 HUMAN_TRAILER = re.compile(r"(?:Signed-off-by|Co-authored-by):", re.IGNORECASE)
 LIST_ITEM = re.compile(r" *(?:[-*+]|\d+[.)]) +\S")
+# A ``#N`` that GitHub links to this repository's issue or pull request N. One
+# written ``owner/repo#N`` has a name character before the ``#``.
+BARE_REF = re.compile(r"(?<![\w./&-])#(\d+)\b")
+BARE_REF_MESSAGE = (
+    "#{number} links to this repository's #{number}; "
+    "write owner/repo#{number}, even for this repository"
+)
 HUMAN_TRAILER_MESSAGE = (
     "Signed-off-by and Co-authored-by do not belong in the description; "
     "remove this line"
@@ -396,6 +403,29 @@ def trailer_problems(lines: Sequence[Line]) -> list[Problem]:
     return problems
 
 
+def ref_problems(lines: Sequence[Line]) -> list[Problem]:
+    """Reject ``#N`` references that don't name their repository.
+
+    GitHub links a bare ``#N`` to the repository it appears in, which is wrong
+    for another repository's pull request and ambiguous once the squash commit
+    is read elsewhere, so every reference is ``owner/repo#N``. Code and links
+    are exempt: neither becomes a reference.
+    """
+    problems: list[Problem] = []
+    for line in lines:
+        if line.code:
+            continue
+        text = INLINE_CODE.sub(" ", line.text)
+        text = LINK.sub(" ", text)
+        text = REF_LINK.sub(" ", text)
+        text = URL.sub(" ", text)
+        problems += [
+            (line.no, BARE_REF_MESSAGE.format(number=number))
+            for number in BARE_REF.findall(text)
+        ]
+    return problems
+
+
 def meta_problems(
     data: object, offset: int, text: str, validator: Draft202012Validator
 ) -> list[Problem]:
@@ -586,6 +616,7 @@ def check_text(text: str) -> Checked:
     title = lines[start]
     problems += [(title.no, why) for why in title_problems(found[1])]
     problems += body_problems(lines[start + 1 :], title)
+    problems += ref_problems(lines[start:])
     rendered = [line.raw for line in lines[start:]]
     problems += lint(rendered, title.no)
     return Checked(sorted(set(problems)), found[1], rendered, meta)
