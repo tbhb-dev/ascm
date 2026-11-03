@@ -53,7 +53,7 @@ jobs:
           egress-policy: audit
 
       # Full history: the release build stamps the version through
-      # `git describe`, and the history secret scan walks every commit.
+      # `git describe`.
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -103,12 +103,35 @@ jobs:
           RELEASE_CONFIG: ${{ matrix.release }}
         run: bazelisk build "--config=${RELEASE_CONFIG}" //cmd/ascm
 
+  # The repository-level checks, on Linux beside the bazel matrix, so they
+  # don't wait behind the tests.
+  repo:
+    name: repo
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # gitleaks scans the whole history, so it needs every commit.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Bazel
+        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+        with:
+          bazelisk-cache: true
+          repository-cache: true
+          cache-save: false
+
       - name: Check that gazelle has nothing to change
-        if: runner.os == 'Linux'
         run: bazelisk run //:gazelle -- -mode=diff
 
       - name: Check that MODULE.bazel is tidy
-        if: runner.os == 'Linux'
         run: |
           bazelisk mod tidy
           git diff --exit-code -- MODULE.bazel
@@ -116,19 +139,16 @@ jobs:
       # Git history is not a declared input, so the history scan runs
       # outside the test graph; //:gitleaks_test covers the working tree.
       - name: Scan Git history for secrets
-        if: runner.os == 'Linux'
         run: bazelisk run //:gitleaks_history
 
       # Advisories change without any input changing, so the audit is never
       # a cached test.
       - name: Audit the locked Python dependencies
-        if: runner.os == 'Linux'
         run: bazelisk run //tools:pip_audit
 
       # //:zizmor_test runs the offline audits; a token turns on the online
       # ones, which need the network.
       - name: Audit workflow security online
-        if: runner.os == 'Linux'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
@@ -138,7 +158,6 @@ jobs:
       # //:codeowners_test checks that every pattern matches a path; owner
       # and syntax validation needs GitHub's API.
       - name: Check CODEOWNERS owners and syntax
-        if: runner.os == 'Linux'
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -157,12 +176,12 @@ jobs:
   # One stable required check for branch protection. `if: always()` runs it
   # even when a needed job failed, and skipped jobs count as failures here
   # so a gate that silently did not run cannot pass.
-  # `needs: [bazel]` waits for every matrix leg, and the job's result is a
-  # failure if any leg failed.
+  # `needs` waits for every matrix leg, and the job's result is a failure
+  # if any leg failed.
   conclusion:
     name: conclusion
     if: always()
-    needs: [bazel]
+    needs: [bazel, repo]
     runs-on: ubuntu-24.04
     steps:
       - name: Harden the runner
