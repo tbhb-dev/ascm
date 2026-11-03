@@ -89,6 +89,18 @@ jobs:
         if: runner.os == 'Windows'
         run: reg add 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem' //v LongPathsEnabled //t REG_DWORD //d 1 //f
 
+      # Fetching hits go.dev's release list (go_sdk.from_file), PyPI, GitHub
+      # and the BCR mirror, which can fail for longer than Bazel's own
+      # download retries wait. Only the fetch is retried: a test failure never
+      # is.
+      - name: Fetch, retrying transient failures
+        run: |
+          for attempt in 1 2 3; do
+            bazelisk fetch --config=ci //... && break
+            if ((attempt == 3)); then exit 1; fi
+            sleep 60
+          done
+
       # //... is every hermetic gate: the whole-tree lint tests (secrets in
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
       # workflows, shell, CODEOWNERS paths), the format check, Starlark
