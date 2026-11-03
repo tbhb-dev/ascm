@@ -2,7 +2,7 @@
 # Copyright Tony Burns
 
 ---
-# actionlint 1.7.12 predates GitHub's ubuntu-26.04 image and reports the
+# actionlint 1.7.12 predates GitHub's ubuntu-26.04 images and reports their
 # labels as unknown. This list only adds labels actionlint accepts; remove
 # an entry once the pinned actionlint knows it.
 self-hosted-runner:
