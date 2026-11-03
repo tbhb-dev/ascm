@@ -31,11 +31,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15, windows-2025]
+        os: [ubuntu-24.04, macos-26, windows-2025]
         include:
           - os: ubuntu-24.04
             release: release
-          - os: macos-15
+          - os: macos-26
             release: release
           # Bazel runs the workspace status command without a shell on
           # Windows, so the release config there uses the batch script.
