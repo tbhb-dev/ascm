@@ -4,6 +4,7 @@ addopts
 afakt
 ascm
 autouse
+awrel
 bazelignore
 bazelisk
 bazelrc
@@ -76,6 +77,7 @@ manylinux
 mapfile
 mapliteral
 maturin
+mcpjson
 mdfile
 mdir
 msgfile
