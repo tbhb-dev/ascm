@@ -202,6 +202,20 @@ def test_list_items_keep_markers_with_a_hanging_indent() -> None:
     assert all(len(line) <= sm.WIDTH for line in out)
 
 
+@pytest.mark.parametrize(
+    ("body", "want"),
+    [
+        ("- a\n- b\n", "- a\n- b\n"),
+        ("Intro\n\n- a\n- b\n\nAfter\n", "Intro\n\n- a\n- b\n\nAfter\n"),
+        ("Para\n- a\n- b\n", "Para\n\n- a\n- b\n"),
+        ("- a\n\n- b\n", "- a\n\n- b\n"),
+        ("- a\n```\nx\n```\n- b\n", "- a\n\n    x\n\n- b\n"),
+    ],
+)
+def test_a_tight_list_stays_one_block(body: str, want: str) -> None:
+    assert sm.build_message("fix: x", 7, body).body == want
+
+
 def test_fenced_code_is_indented_not_wrapped() -> None:
     long = "$ " + "x" * 100
     body = f"## Verification\n\nRan:\n\n```console\n{long}\n\nok\n```\n\nDone.\n"
@@ -543,6 +557,18 @@ def test_renovate_body_lists_every_row_and_tolerates_missing_columns() -> None:
     )
     assert sm.renovate_body(body) == "- a 1 → 2\n- b 3 → 4\n"
     assert sm.renovate_body("| Package |\n|---|\n| only |\n") == "- only\n"
+
+
+def test_renovate_body_lists_a_repeated_update_once() -> None:
+    body = (
+        "| Package | Type | Update | Change |\n|---|---|---|---|\n"
+        "| [ubuntu](https://x) |  | major | `24.04` → `26.04` |\n"
+        "| [ubuntu](https://x) | github-runner | major | `24.04` → `26.04` |\n"
+        "| [macos](https://x) |  | major | `15` → `26` |\n"
+    )
+    assert sm.renovate_body(body) == (
+        "- ubuntu 24.04 → 26.04 (major)\n- macos 15 → 26 (major)\n"
+    )
 
 
 @pytest.mark.parametrize(
