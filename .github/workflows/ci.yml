@@ -84,15 +84,10 @@ jobs:
       # cp315 manylinux aarch64 wheel exists.
       - name: Set up Rust for complexipy's source build
         if: matrix.os == 'ubuntu-24.04-arm'
-        # rules' Python environment runs uv with its own HOME, so rustup and
-        # cargo learn where the toolchain lives from --repo_env.
+        # rules' Python environment passes RUSTUP_HOME and CARGO_HOME on to uv.
         run: |
           rustup toolchain install 1.99.1 --profile minimal
           rustup default 1.99.1
-          {
-            echo "common --repo_env=RUSTUP_HOME=${RUSTUP_HOME:-$HOME/.rustup}"
-            echo "common --repo_env=CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}"
-          } >> .bazelrc.user
 
       # Some runfiles paths pass Windows' 260-character limit under the
       # default output root in the runner's profile. The user bazelrc reaches
@@ -124,7 +119,7 @@ jobs:
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
       # workflows, shell, CODEOWNERS paths), the format check, Starlark
       # lint, nogo during the build, the Go and Python tests and linters,
-      # the coverage floor, the docs bundle and REUSE checks, the import
+      # the coverage checks, the docs bundle and REUSE checks, the import
       # contracts, and the preset staleness test.
       - name: Test
         run: bazelisk test --config=ci //...

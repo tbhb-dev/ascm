@@ -28,7 +28,7 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files")
-load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test", "gomutants_test")
+load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test", "gobco_test", "gomutants_test")
 load("//:vale_packages.bzl", "VALE_PACKAGES")
 load("//tools/lint:linters.bzl", "golangci_lint_test")
 
@@ -152,6 +152,24 @@ gomutants_test(
         "//cmd/ascm:ascm_test",
         "//internal/buildmeta:buildmeta_test",
     ],
+)
+
+# Condition coverage: every outcome of every condition in a package must be
+# reached by that package's tests. One target per package, so each is cached
+# on its own.
+gobco_test(
+    name = "ascm_gobco_test",
+    go_mod = "go.mod",
+    go_sum = "go.sum",
+    proxy = "@go_mod_proxy//:proxy",
+    tests = ["//cmd/ascm:ascm_test"],
+)
+
+gobco_test(
+    name = "buildmeta_gobco_test",
+    go_mod = "go.mod",
+    go_sum = "go.sum",
+    tests = ["//internal/buildmeta:buildmeta_test"],
 )
 
 # The changes file for a diff-scope mutation run: empty, so full scope,
