@@ -28,7 +28,7 @@ load(
     "zizmor_test",
 )
 load("@tbhb_rules//repo:defs.bzl", "repo_files")
-load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test", "gobco_test", "gomutants_test")
+load("@tbhb_rules_go//:defs.bzl", "go_arch_lint_test", "go_deadcode_test", "go_mod_tidy_test", "gobco_test", "gomutants_test", "govulncheck", "govulncheck_test")
 load("//:vale_packages.bzl", "VALE_PACKAGES")
 load("//tools/lint:linters.bzl", "golangci_lint_test")
 
@@ -59,6 +59,7 @@ BUILDIFIER_EXCLUDES = [
     "./.venv/*",
     "./.mise/*",
     "./bazel-*",
+    "./.bazel-*",
     "./node_modules/*",
     "./mutants/*",
     "./tmp/*",
@@ -130,6 +131,25 @@ go_arch_lint_test(
 go_mod_tidy_test(
     name = "go_mod_tidy_test",
     srcs = [":repo_files"],
+    go_mod = "go.mod",
+    go_sum = "go.sum",
+    proxy = "@go_mod_proxy//:proxy",
+)
+
+# Known vulnerabilities that the module's code can reach. The scan needs the
+# vulnerability database, so the test is manual; CI's repo job runs the
+# `bazel run` companion.
+govulncheck_test(
+    name = "govulncheck_test",
+    srcs = GO_TARGETS,
+    go_mod = "go.mod",
+    go_sum = "go.sum",
+    proxy = "@go_mod_proxy//:proxy",
+)
+
+govulncheck(
+    name = "govulncheck",
+    srcs = GO_TARGETS,
     go_mod = "go.mod",
     go_sum = "go.sum",
     proxy = "@go_mod_proxy//:proxy",

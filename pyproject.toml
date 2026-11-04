@@ -238,18 +238,14 @@ useless-overload-body = "error"
 variance-mismatch = "error"
 
 [tool.coverage.run]
-# Measure branch coverage, not just line coverage: a 100% line score can
-# still leave one side of a conditional never taken.
-branch = true
 # Store paths relative to the project root so data files combine cleanly
 # across operating systems.
 relative_files = true
 
 [tool.coverage.report]
-# Nothing ships without a branch reaching it. Anything genuinely
-# unreachable belongs in exclude_also below with a reason, not behind a
-# lowered threshold.
-fail_under = 100
+# //tools:pytest_test sets branch coverage and the 100% floor, from
+# tbhb_rules. Anything genuinely unreachable belongs in exclude_also below
+# with a reason.
 show_missing = true
 exclude_also = [
   # Bodies guarded by TYPE_CHECKING run only under a type checker.

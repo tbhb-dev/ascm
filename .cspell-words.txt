@@ -22,12 +22,14 @@ cmdlines
 cocogitto
 compgen
 complexipy
+conftest
 cpus
 cuda
 cyclop
 deadcode
 delenv
 depguard
+deptry
 direnv
 docstrings
 dunder
@@ -58,6 +60,7 @@ gomutants
 GOPROXY
 gosec
 govet
+govulncheck
 gpgsign
 hardwrap
 heapdump

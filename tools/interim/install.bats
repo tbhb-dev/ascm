@@ -23,12 +23,13 @@ setup() {
 	mkdir -p "$HOME"
 	: >"$GIT_CONFIG_GLOBAL"
 	# Each run of install.sh gets a PATH holding only what it needs, so a real
-	# prek or mise on the developer's machine never leaks in.
+	# prek or mise on the developer's machine never leaks in. tbhb_rules'
+	# pinned git is a wrapper that runs readlink, dirname and uname.
 	STUBS="${BATS_TEST_TMPDIR}/stubs"
 	CALLS="${BATS_TEST_TMPDIR}/calls"
 	mkdir -p "$STUBS"
 	local tool target
-	for tool in env git bash mkdir chmod rm mv cat dirname; do
+	for tool in env git bash mkdir chmod rm mv cat dirname readlink uname; do
 		target=$(command -v "$tool")
 		ln -s "$target" "${STUBS}/${tool}"
 	done

@@ -8,6 +8,7 @@
 ignore_directories([
     ".git",
     "bazel-*",
+    ".bazel-*",
     ".bazel_env",
     ".mise",
     ".venv",

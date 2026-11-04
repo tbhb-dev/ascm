@@ -22,7 +22,7 @@ from jsonschema import Draft202012Validator
 
 from tools.interim import agent_identity
 from tools.interim import pull_request as pr
-from tools.interim.fake_tool import write_fake
+from tools.interim.fake_tool import link_git, write_fake
 
 # mutmut runs the tests from a copy of the source tree, so everything resolves
 # against this file: the real repository root, or the mutants/ copy of it.
@@ -95,11 +95,6 @@ class World:
 
     def commit(self, message: str) -> None:
         self.git("commit", "--allow-empty", "-q", "-m", message)
-
-
-def link_git(directory: Path) -> None:
-    directory.mkdir()
-    (directory / "git").symlink_to(shutil.which("git") or "git")
 
 
 @pytest.fixture
