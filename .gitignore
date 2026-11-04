@@ -3,6 +3,7 @@ tmp/
 bin/
 dist/
 bazel-*
+.bazel-*
 .bazelrc.user
 # bazel_env's symlink into the output tree (bazel run //:bazel_env).
 .bazel_env

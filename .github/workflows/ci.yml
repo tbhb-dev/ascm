@@ -32,11 +32,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
+        os: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
         include:
-          - os: ubuntu-24.04
+          - os: ubuntu-26.04
             release: release
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-26.04-arm
             release: release
           - os: macos-26
             release: release
@@ -48,13 +48,6 @@ jobs:
       run:
         shell: bash
     steps:
-      # harden-runner monitors Linux runners only.
-      - name: Harden the runner
-        if: runner.os == 'Linux'
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
       # Full history: the release build stamps the version through
       # `git describe`.
       - name: Checkout
@@ -63,57 +56,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      # On Windows the rules' scripts run under the shell toolchain's Bash,
-      # MSYS2's on the hosted image. Only there: elsewhere Bazel would run
-      # genrule commands with it too.
-      - name: Point Bazel at Bash
-        if: runner.os == 'Windows'
-        run: echo 'BAZEL_SH=C:/msys64/usr/bin/bash.exe' >>"$GITHUB_ENV"
-
-      - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
+      # rules' shared setup: runner hardening (Linux), Bazel and its caches,
+      # the Windows and Linux arm64 fixes, and a fetch that retries
+      # transient failures. See its .github/actions/README.md.
+      - name: Set up Bazel for CI
+        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@e5d8694c5304db4218b188255c3e6089271ed47f  # main
         with:
-          bazelisk-cache: true
           disk-cache: ${{ github.workflow }}-${{ matrix.os }}
-          repository-cache: true
           cache-save: ${{ github.event_name != 'pull_request' }}
-
-      # complexipy publishes no Python 3.15 wheel for Linux arm64, so uv builds
-      # it from source there with maturin, which needs a Rust toolchain. The
-      # runner has rustup but no default toolchain. Drop this step once a
-      # cp315 manylinux aarch64 wheel exists.
-      - name: Set up Rust for complexipy's source build
-        if: matrix.os == 'ubuntu-24.04-arm'
-        # rules' Python environment passes RUSTUP_HOME and CARGO_HOME on to uv.
-        run: |
-          rustup toolchain install 1.99.1 --profile minimal
-          rustup default 1.99.1
-
-      # Some runfiles paths pass Windows' 260-character limit under the
-      # default output root in the runner's profile. The user bazelrc reaches
-      # every workspace the job tests. After setup-bazel, which writes that file
-      # too and leaves its last line unterminated, hence the leading newline.
-      - name: Shorten Bazel's output root
-        if: runner.os == 'Windows'
-        run: printf '\nstartup --output_user_root=C:/b\n' >>"$HOME/.bazelrc"
-
-      # Even under that root, a few paths in the Python runtime's packages
-      # pass 260 characters; Python reads them only with long paths enabled.
-      - name: Enable long paths
-        if: runner.os == 'Windows'
-        run: reg add 'HKLM\SYSTEM\CurrentControlSet\Control\FileSystem' //v LongPathsEnabled //t REG_DWORD //d 1 //f
-
-      # Fetching hits go.dev's release list (go_sdk.from_file), PyPI, GitHub
-      # and the BCR mirror, which can fail for longer than Bazel's own
-      # download retries wait. Only the fetch is retried: a test failure never
-      # is.
-      - name: Fetch, retrying transient failures
-        run: |
-          for attempt in 1 2 3; do
-            bazelisk fetch --config=ci //... && break
-            if ((attempt == 3)); then exit 1; fi
-            sleep 60
-          done
 
       # //... is every hermetic gate: the whole-tree lint tests (secrets in
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
@@ -137,105 +87,41 @@ jobs:
         with:
           name: testlogs-${{ matrix.os }}
           path: |
-            bazel-testlogs/**/test.log
-            bazel-testlogs/**/test.xml
+            .bazel-testlogs/**/test.log
+            .bazel-testlogs/**/test.xml
+          # The convenience links are dotfiles, which the action skips by default.
+          include-hidden-files: true
           if-no-files-found: ignore
 
-  # The repository-level checks, on Linux beside the bazel matrix, so they
-  # don't wait behind the tests.
+  # The repository-level checks that need Git history, the network or the
+  # GitHub API, in rules' shared workflow, on Linux beside the bazel matrix so
+  # they don't wait behind the tests. A job that calls a workflow can't set
+  # its own timeout, so it is an input.
   repo:
     name: repo
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          # gitleaks scans the whole history, so it needs every commit.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3  # 0.19.1
-        with:
-          bazelisk-cache: true
-          repository-cache: true
-          cache-save: false
-
-      - name: Check that gazelle has nothing to change
-        run: bazelisk run //:gazelle -- -mode=diff
-
-      - name: Check that MODULE.bazel is tidy
-        run: |
-          bazelisk mod tidy
-          git diff --exit-code -- MODULE.bazel
-
-      # Git history is not a declared input, so the history scan runs
-      # outside the test graph; //:gitleaks_test covers the working tree.
-      - name: Scan Git history for secrets
-        run: bazelisk run //:gitleaks_history
-
-      # Advisories change without any input changing, so the audit is never
-      # a cached test.
-      - name: Audit the locked Python dependencies
-        run: bazelisk run //tools:pip_audit
-
-      # //:zizmor_test runs the offline audits; a token turns on the online
-      # ones, which need the network.
-      - name: Audit workflow security online
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          bazelisk run @tbhb_rules_zizmor//:zizmor --
-          --persona pedantic --no-progress "${GITHUB_WORKSPACE}/.github"
-
-      # //:codeowners_test checks that every pattern matches a path; owner
-      # and syntax validation needs GitHub's API.
-      - name: Check CODEOWNERS owners and syntax
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          errors="$(gh api \
-            "repos/${GITHUB_REPOSITORY}/codeowners/errors?ref=${HEAD_SHA}" \
-            --jq '.errors')"
-          count="$(printf '%s' "${errors}" | jq 'length')"
-          if [ "${count}" -ne 0 ]; then
-            echo "::error::CODEOWNERS has ${count} owner or syntax error(s):"
-            printf '%s' "${errors}" |
-              jq -r '.[] | "  line \(.line): \(.kind): \(.message)"'
-            exit 1
-          fi
+    permissions:
+      contents: read
+    uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@e5d8694c5304db4218b188255c3e6089271ed47f  # main
+    with:
+      timeout-minutes: 10
+      gazelle-dirs: .
+      module-dirs: .
+      pip-audit-target: //tools:pip_audit
+      govulncheck-target: //:govulncheck
 
   # One stable required check for branch protection. `if: always()` runs it
-  # even when a needed job failed. It passes only when every needed job's
-  # result is exactly "success", so a gate that was skipped, cancelled or
-  # never finished cannot pass. A matrix with a cancelled leg reports
-  # "abandoned", not "cancelled", so the check lists what passes, not what
-  # fails.
+  # even when a needed job failed. rules' ci-conclusion passes only when
+  # every needed job's result is exactly "success", so a gate that was
+  # skipped, cancelled or never finished cannot pass. It stays a local job:
+  # a job that calls a workflow reports a different check name.
   conclusion:
     name: conclusion
     if: always()
     needs: [bazel, repo]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
-      - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
-        with:
-          egress-policy: audit
-
       - name: Fail if any needed job did not succeed
-        env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: |
-          echo "$NEEDS"
-          if ! jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null; then
-            echo "A required job did not succeed." >&2
-            exit 1
-          fi
+        uses: tbhb-dev/rules/.github/actions/ci-conclusion@e5d8694c5304db4218b188255c3e6089271ed47f  # main
+        with:
+          needs: ${{ toJSON(needs) }}

@@ -4,6 +4,7 @@
 """Fake command-line tools for the interim tooling's tests."""
 
 import shlex
+import shutil
 import sys
 from typing import TYPE_CHECKING
 
@@ -23,3 +24,16 @@ def write_fake(script: Path, body: str) -> None:
     python, path = shlex.quote(sys.executable), shlex.quote(str(source))
     script.write_text(f'#!/bin/sh\nexec {python} {path} "$@"\n')
     script.chmod(0o755)
+
+
+# tbhb_rules' pinned git is a /bin/sh wrapper that finds its archive with
+# readlink and dirname and checks the kernel with uname, so a PATH that
+# holds git must hold these too.
+GIT_TOOLS = ("git", "readlink", "dirname", "uname")
+
+
+def link_git(directory: Path) -> None:
+    """A new directory for PATH that holds git and the tools it runs."""
+    directory.mkdir()
+    for name in GIT_TOOLS:
+        (directory / name).symlink_to(shutil.which(name) or name)

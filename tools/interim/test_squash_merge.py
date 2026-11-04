@@ -6,7 +6,6 @@
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -19,7 +18,7 @@ from hypothesis import strategies as st
 from tools.interim import agent_identity
 from tools.interim import pull_request as pr
 from tools.interim import squash_merge as sm
-from tools.interim.fake_tool import write_fake
+from tools.interim.fake_tool import link_git, write_fake
 
 FIXTURE = Path(__file__).parent / "testdata" / "pull_request" / "passing-draft.md"
 HARNESS_ENV = {"CLAUDE_CODE_SESSION_ID": "raw-session"}
@@ -87,8 +86,7 @@ def tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Tools:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     git_dir = tmp_path / "git"
-    git_dir.mkdir()
-    (git_dir / "git").symlink_to(shutil.which("git") or "git")
+    link_git(git_dir)
     for name, body in (("gh", GH), ("cog", COG)):
         write_fake(bin_dir / name, body.format())
     # One statement, not a loop: under Bazel's clean environment there is

@@ -7,6 +7,11 @@ import %workspace%/preset.bazelrc
 # and module versions in use unless told not to.
 common --repo_env=DO_NOT_TRACK=1
 
+# Dot-prefix the convenience symlinks (.bazel-bin, .bazel-out, .bazel-testlogs,
+# .bazel-<workspace>), so tools that skip dotfiles leave them alone instead of
+# following them into the output base.
+common --symlink_prefix=.bazel-
+
 common --lockfile_mode=error
 
 # Fail when a bazel_dep version is lower than what the module graph resolves
