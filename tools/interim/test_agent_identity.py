@@ -968,6 +968,14 @@ def test_ps_row_none_when_gone(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ai.ps_row("7") is None
 
 
+def test_ps_row_none_when_ps_is_denied(monkeypatch: pytest.MonkeyPatch) -> None:
+    def denied(argv: list[str], **_: object) -> FakeRun:
+        raise PermissionError(argv[0])
+
+    monkeypatch.setattr(ai.subprocess, "run", denied)
+    assert ai.ps_row("7") is None
+
+
 def test_ps_row_on_real_processes() -> None:
     row = ai.ps_row(str(os.getpid()))
     assert row is not None
