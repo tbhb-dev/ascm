@@ -28,6 +28,7 @@ jobs:
   bazel:
     name: "bazel (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -150,6 +151,7 @@ jobs:
   repo:
     name: repo
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
@@ -216,15 +218,17 @@ jobs:
           fi
 
   # One stable required check for branch protection. `if: always()` runs it
-  # even when a needed job failed, and skipped jobs count as failures here
-  # so a gate that silently did not run cannot pass.
-  # `needs` waits for every matrix leg, and the job's result is a failure
-  # if any leg failed.
+  # even when a needed job failed. It passes only when every needed job's
+  # result is exactly "success", so a gate that was skipped, cancelled or
+  # never finished cannot pass. A matrix with a cancelled leg reports
+  # "abandoned", not "cancelled", so the check lists what passes, not what
+  # fails.
   conclusion:
     name: conclusion
     if: always()
     needs: [bazel, repo]
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43  # v2.22.3
@@ -236,7 +240,7 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS"
-          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
+          if ! jq -e 'all(.[]; .result == "success")' <<<"$NEEDS" >/dev/null; then
             echo "A required job did not succeed." >&2
             exit 1
           fi
