@@ -4,6 +4,7 @@ addopts
 afakt
 ascm
 autouse
+awrel
 bazelignore
 bazelisk
 bazelrc
