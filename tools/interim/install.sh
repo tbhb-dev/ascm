@@ -18,6 +18,9 @@
 # failing fails the commit. The tradeoff: in a repository with such hooks, that
 # stage gets prek's stash and modified-files check back, with the concurrency
 # risk above. Without them, the chain costs one file test per commit.
+#
+# Every session start runs this, so runs can overlap; a lock directory in the
+# hooks directory lets one run at a time touch the hooks.
 set -euo pipefail
 
 hooks_path=$(git config --get core.hooksPath || true)
@@ -35,13 +38,28 @@ else
   exit 1
 fi
 
+hooks=$(git rev-parse --path-format=absolute --git-path hooks)
+mkdir -p "$hooks"
+# mkdir is atomic, and stock macOS has no flock. Wait up to the timeout (in
+# seconds) for another run to finish.
+lock="$hooks/.tbhb-install.lock"
+timeout=${TBHB_INSTALL_LOCK_TIMEOUT:-60}
+tenths=0
+until mkdir "$lock" 2>/dev/null; do
+  if ((tenths >= timeout * 10)); then
+    echo "install.sh: error: could not take $lock within ${timeout}s; if no other install.sh is running, remove it" >&2
+    exit 1
+  fi
+  sleep 0.1
+  tenths=$((tenths + 1))
+done
+trap 'rmdir "$lock"' EXIT
+
 "${prek[@]}" install --hook-type pre-commit --hook-type pre-push
 
 # The module needs Python 3.15, and the python3 on PATH may be older, so it
 # runs through uv. Git runs hooks from the top of the work tree.
 marker="# ascm interim agent identity hook (tools/interim/install.sh)"
-hooks=$(git rev-parse --path-format=absolute --git-path hooks)
-mkdir -p "$hooks"
 for pair in prepare-commit-msg:trailer commit-msg:check post-commit:consume; do
   type=${pair%%:*}
   hook="$hooks/$type"
@@ -51,10 +69,18 @@ for pair in prepare-commit-msg:trailer commit-msg:check post-commit:consume; do
     continue
   fi
   rm -f "$hook" "$hook.prek"
+  # prek moves a hook it doesn't own to <hook>.legacy, so an overlapping run
+  # before the lock could leave this script's hook there. A .legacy without the
+  # marker may be someone's own hook, so it stays.
+  if [[ -f $hook.legacy && $(<"$hook.legacy") == *"$marker"* ]]; then
+    rm -f "$hook.legacy"
+  fi
   # No config (or an unreadable one) counts as no hooks for the stage.
   staged_hooks=$("${prek[@]}" list --hook-stage "$type" 2>/dev/null || true)
   if [[ -n $staged_hooks ]]; then
-    "${prek[@]}" install --hook-type "$type"
+    # -f overwrites the hook instead of migrating it to <hook>.legacy, which
+    # puts prek's shim in migration mode. It also deletes any <hook>.legacy.
+    "${prek[@]}" install -f --hook-type "$type"
     mv "$hook" "$hook.prek"
   fi
   cat >"$hook" <<SHIM
