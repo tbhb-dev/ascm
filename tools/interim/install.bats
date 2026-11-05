@@ -29,7 +29,7 @@ setup() {
 	CALLS="${BATS_TEST_TMPDIR}/calls"
 	mkdir -p "$STUBS"
 	local tool target
-	for tool in env git bash mkdir rmdir chmod rm mv cat sleep dirname readlink uname; do
+	for tool in env git bash mkdir rmdir chmod rm mv cat sleep date dirname readlink uname; do
 		target=$(command -v "$tool")
 		ln -s "$target" "${STUBS}/${tool}"
 	done
@@ -251,6 +251,53 @@ STUB
 	[ "$output" = $'#!/bin/sh\necho mine' ]
 }
 
+@test "backs up a .legacy without the marker before prek install -f deletes it" {
+	prek_with_stage commit-msg
+	mkdir -p .git/hooks
+	printf '#!/bin/sh\necho mine\n' >.git/hooks/commit-msg.legacy
+	run --separate-stderr env PATH="$STUBS" "$SCRIPT"
+	[ "$status" -eq 0 ]
+	[ ! -e .git/hooks/commit-msg.legacy ]
+	local hooks backups
+	hooks=$(git rev-parse --path-format=absolute --git-path hooks)
+	backups=("${hooks}"/commit-msg.legacy.tbhb-backup.*)
+	[ "${#backups[@]}" -eq 1 ]
+	[ -f "${backups[0]}" ]
+	[ "$stderr" = "install.sh: moved ${hooks}/commit-msg.legacy to ${backups[0]}; prek install -f would delete it" ]
+	run cat "${backups[0]}"
+	[ "$output" = $'#!/bin/sh\necho mine' ]
+}
+
+@test "never overwrites an earlier backup of a .legacy" {
+	prek_with_stage commit-msg
+	printf '#!/bin/sh\necho 20260101T000000Z\n' >"${STUBS}/date.fixed"
+	chmod +x "${STUBS}/date.fixed"
+	mv "${STUBS}/date.fixed" "${STUBS}/date"
+	mkdir -p .git/hooks
+	local backup=.git/hooks/commit-msg.legacy.tbhb-backup.20260101T000000Z
+	printf 'first\n' >"$backup"
+	printf 'second\n' >"${backup}.1"
+	printf 'third\n' >.git/hooks/commit-msg.legacy
+	run env PATH="$STUBS" "$SCRIPT"
+	[ "$status" -eq 0 ]
+	[ "$(<"$backup")" = first ]
+	[ "$(<"${backup}.1")" = second ]
+	[ "$(<"${backup}.2")" = third ]
+	[ ! -e .git/hooks/commit-msg.legacy ]
+}
+
+@test "removes a .legacy with the marker before prek install -f, without a backup" {
+	prek_with_stage commit-msg
+	mkdir -p .git/hooks
+	printf '#!/bin/sh\n# ascm interim agent identity hook (tools/interim/install.sh)\n' >.git/hooks/commit-msg.legacy
+	run --separate-stderr env PATH="$STUBS" "$SCRIPT"
+	[ "$status" -eq 0 ]
+	[ -z "$stderr" ]
+	[ ! -e .git/hooks/commit-msg.legacy ]
+	run compgen -G ".git/hooks/*.tbhb-backup.*"
+	[ "$status" -ne 0 ]
+}
+
 @test "waits for a held lock, then installs and releases it" {
 	stub prek
 	mkdir -p .git/hooks/.tbhb-install.lock
@@ -277,6 +324,78 @@ STUB
 	[ "$stderr" = "install.sh: error: could not take ${hooks}/.tbhb-install.lock within 1s; if no other install.sh is running, remove it" ]
 	[ ! -e "$CALLS" ]
 	[ -d .git/hooks/.tbhb-install.lock ]
+}
+
+@test "breaks a lock whose owner is no longer running" {
+	stub prek
+	true &
+	local dead=$!
+	wait "$dead"
+	mkdir -p .git/hooks/.tbhb-install.lock
+	echo "$dead" >.git/hooks/.tbhb-install.lock/pid
+	local hooks
+	hooks=$(git rev-parse --path-format=absolute --git-path hooks)
+	run --separate-stderr env PATH="$STUBS" TBHB_INSTALL_LOCK_TIMEOUT=5 "$SCRIPT"
+	[ "$status" -eq 0 ]
+	[ "$output" = "install.sh: installed git hooks" ]
+	[ "$stderr" = "install.sh: removed stale lock ${hooks}/.tbhb-install.lock; process ${dead} is not running" ]
+	[ ! -e .git/hooks/.tbhb-install.lock ]
+	[ ! -e .git/hooks/.tbhb-install.lock.break ]
+	run cat "$CALLS"
+	[ "${lines[0]}" = "prek ${EXPECTED}" ]
+}
+
+@test "times out on a lock whose owner is still running" {
+	stub prek
+	sleep 30 >/dev/null 2>&1 3>&- &
+	local live=$!
+	mkdir -p .git/hooks/.tbhb-install.lock
+	echo "$live" >.git/hooks/.tbhb-install.lock/pid
+	local hooks
+	hooks=$(git rev-parse --path-format=absolute --git-path hooks)
+	run --separate-stderr env PATH="$STUBS" TBHB_INSTALL_LOCK_TIMEOUT=1 "$SCRIPT"
+	kill "$live"
+	[ "$status" -eq 1 ]
+	[ "$stderr" = "install.sh: error: could not take ${hooks}/.tbhb-install.lock within 1s; if no other install.sh is running, remove it" ]
+	[ ! -e "$CALLS" ]
+	[ "$(<.git/hooks/.tbhb-install.lock/pid)" = "$live" ]
+}
+
+@test "rejects a lock timeout that is not a whole number of seconds" {
+	stub prek
+	local timeout
+	for timeout in 0.5 abc -1; do
+		run --separate-stderr env PATH="$STUBS" TBHB_INSTALL_LOCK_TIMEOUT="$timeout" "$SCRIPT"
+		[ "$status" -eq 1 ]
+		[ "$stderr" = "install.sh: error: TBHB_INSTALL_LOCK_TIMEOUT must be a whole number of seconds, not '${timeout}'" ]
+	done
+	[ ! -e "$CALLS" ]
+	[ ! -e .git/hooks/.tbhb-install.lock ]
+}
+
+@test "records its PID in the lock while it holds it" {
+	# shellcheck disable=SC2016 # $* and $CALLS expand when the stub runs
+	printf '#!/bin/sh\necho "prek $*" >>"$CALLS"\ncat .git/hooks/.tbhb-install.lock/pid >>"$CALLS"\n' >"${STUBS}/prek"
+	chmod +x "${STUBS}/prek"
+	run env PATH="$STUBS" "$SCRIPT"
+	[ "$status" -eq 0 ]
+	run cat "$CALLS"
+	[[ ${lines[1]} =~ ^[1-9][0-9]*$ ]]
+	[ ! -e .git/hooks/.tbhb-install.lock ]
+}
+
+@test "still exits 0 when the lock holds an unexpected file" {
+	# shellcheck disable=SC2016 # $* and $CALLS expand when the stub runs
+	printf '#!/bin/sh\necho "prek $*" >>"$CALLS"\n: >.git/hooks/.tbhb-install.lock/extra\n' >"${STUBS}/prek"
+	chmod +x "${STUBS}/prek"
+	local hooks
+	hooks=$(git rev-parse --path-format=absolute --git-path hooks)
+	run --separate-stderr env PATH="$STUBS" "$SCRIPT"
+	[ "$status" -eq 0 ]
+	[ "$output" = "install.sh: installed git hooks" ]
+	[ "$stderr" = "install.sh: warning: could not remove ${hooks}/.tbhb-install.lock; remove it before the next run" ]
+	[ ! -e .git/hooks/.tbhb-install.lock/pid ]
+	[ -e .git/hooks/.tbhb-install.lock/extra ]
 }
 
 @test "releases the lock when prek fails" {

@@ -20,7 +20,9 @@
 # risk above. Without them, the chain costs one file test per commit.
 #
 # Every session start runs this, so runs can overlap; a lock directory in the
-# hooks directory lets one run at a time touch the hooks.
+# hooks directory, holding its owner's PID, lets one run at a time touch the
+# hooks. A run waits up to TBHB_INSTALL_LOCK_TIMEOUT seconds (default 15) and
+# breaks a lock whose owner is no longer running.
 set -euo pipefail
 
 hooks_path=$(git config --get core.hooksPath || true)
@@ -43,17 +45,45 @@ mkdir -p "$hooks"
 # mkdir is atomic, and stock macOS has no flock. Wait up to the timeout (in
 # seconds) for another run to finish.
 lock="$hooks/.tbhb-install.lock"
-timeout=${TBHB_INSTALL_LOCK_TIMEOUT:-60}
+timeout=${TBHB_INSTALL_LOCK_TIMEOUT:-15}
+case $timeout in
+'' | *[!0-9]*)
+  echo "install.sh: error: TBHB_INSTALL_LOCK_TIMEOUT must be a whole number of seconds, not '$timeout'" >&2
+  exit 1
+  ;;
+esac
+# Prints the PID in the lock's pid file when that process isn't running. A lock
+# without a readable PID (a run killed between its mkdir and writing the file)
+# counts as held, so it waits out the timeout like a live one.
+dead_owner() {
+  local pid=
+  { read -r pid <"$lock/pid"; } 2>/dev/null || true
+  [[ -n $pid && $pid != *[!0-9]* ]] && ! kill -0 "$pid" 2>/dev/null && echo "$pid"
+}
 tenths=0
 until mkdir "$lock" 2>/dev/null; do
-  if ((tenths >= timeout * 10)); then
+  # Only the run holding $lock.break may break the lock, and it checks the owner
+  # again first, so two waiters can't both break it and remove the lock the
+  # other has just taken.
+  pid=$(dead_owner || true)
+  if [[ -n $pid ]] && mkdir "$lock.break" 2>/dev/null; then
+    pid=$(dead_owner || true)
+    if [[ -n $pid ]] && rm -f "$lock/pid" && rmdir "$lock" 2>/dev/null; then
+      echo "install.sh: removed stale lock $lock; process $pid is not running" >&2
+    fi
+    rmdir "$lock.break"
+    continue
+  fi
+  if ((tenths >= 10#$timeout * 10)); then
     echo "install.sh: error: could not take $lock within ${timeout}s; if no other install.sh is running, remove it" >&2
     exit 1
   fi
   sleep 0.1
   tenths=$((tenths + 1))
 done
-trap 'rmdir "$lock"' EXIT
+# Leftover files in the lock make rmdir fail; warn rather than fail the run.
+trap 'rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null || echo "install.sh: warning: could not remove $lock; remove it before the next run" >&2' EXIT
+echo $$ >"$lock/pid"
 
 "${prek[@]}" install --hook-type pre-commit --hook-type pre-push
 
@@ -71,7 +101,7 @@ for pair in prepare-commit-msg:trailer commit-msg:check post-commit:consume; do
   rm -f "$hook" "$hook.prek"
   # prek moves a hook it doesn't own to <hook>.legacy, so an overlapping run
   # before the lock could leave this script's hook there. A .legacy without the
-  # marker may be someone's own hook, so it stays.
+  # marker may be someone's own hook, so it's kept, or backed up below.
   if [[ -f $hook.legacy && $(<"$hook.legacy") == *"$marker"* ]]; then
     rm -f "$hook.legacy"
   fi
@@ -79,7 +109,19 @@ for pair in prepare-commit-msg:trailer commit-msg:check post-commit:consume; do
   staged_hooks=$("${prek[@]}" list --hook-stage "$type" 2>/dev/null || true)
   if [[ -n $staged_hooks ]]; then
     # -f overwrites the hook instead of migrating it to <hook>.legacy, which
-    # puts prek's shim in migration mode. It also deletes any <hook>.legacy.
+    # puts prek's shim in migration mode. It also deletes any <hook>.legacy, so
+    # move that to a new backup file first.
+    if [[ -f $hook.legacy ]]; then
+      backup="$hook.legacy.tbhb-backup.$(date -u +%Y%m%dT%H%M%SZ)"
+      stamped=$backup
+      n=1
+      while [[ -e $backup || -L $backup ]]; do
+        backup="$stamped.$n"
+        n=$((n + 1))
+      done
+      mv "$hook.legacy" "$backup"
+      echo "install.sh: moved $hook.legacy to $backup; prek install -f would delete it" >&2
+    fi
     "${prek[@]}" install -f --hook-type "$type"
     mv "$hook" "$hook.prek"
   fi
