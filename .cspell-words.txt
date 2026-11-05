@@ -139,6 +139,7 @@ subtests
 surrogateescape
 takewhile
 tbhb
+tbhbdev
 testifylint
 testonly
 testpaths

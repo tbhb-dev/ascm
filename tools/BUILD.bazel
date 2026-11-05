@@ -132,10 +132,12 @@ pytest_test(
     env = GIT_ENV | {"BAZEL_BINDIR": "."},
     # The interim PR and merge scripts run these against the repository's
     # own configs, so their tests need them, and the Vale packages synced.
+    # The secret scan's tests run the pinned gitleaks.
     path_tools = [
         "@tbhb_rules//lint/private/cspell",
         "@tbhb_rules_cog//:cog",
         "@tbhb_rules_git//:git",
+        "@tbhb_rules_gitleaks//:gitleaks",
         "@tbhb_rules_rumdl//:rumdl",
         "@tbhb_rules_vale//:vale",
     ],

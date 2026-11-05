@@ -18,7 +18,7 @@ from hypothesis import strategies as st
 from tools.interim import agent_identity
 from tools.interim import pull_request as pr
 from tools.interim import squash_merge as sm
-from tools.interim.fake_tool import link_git, write_fake
+from tools.interim.fake_tool import link_git, write_fake, write_private_config
 
 FIXTURE = Path(__file__).parent / "testdata" / "pull_request" / "passing-draft.md"
 HARNESS_ENV = {"CLAUDE_CODE_SESSION_ID": "raw-session"}
@@ -37,6 +37,15 @@ with open(os.path.join(here, "gh.log"), "a") as log:
 sys.stdout.write(spec[kind + "_out"])
 sys.stderr.write(spec[kind + "_err"])
 sys.exit(spec[kind + "_rc"])
+"""
+GITLEAKS = """import json, os, sys
+here = os.path.dirname(os.path.abspath(__file__))
+spec = os.path.join(here, "gitleaks.spec")
+rc, err = json.load(open(spec)) if os.path.exists(spec) else (0, "")
+with open(os.path.join(here, "gitleaks.log"), "a") as log:
+    log.write(json.dumps(sys.stdin.read()) + "\\n")
+sys.stderr.write(err)
+sys.exit(rc)
 """
 COG = """import sys
 text = sys.stdin.read()
@@ -76,6 +85,12 @@ class Tools:
         }
         self.gh(view_out=json.dumps(data | fields))
 
+    def scanned(self) -> list[str]:
+        log = self.bin / "gitleaks.log"
+        if not log.exists():
+            return []
+        return [json.loads(line) for line in log.read_text().splitlines()]
+
     def calls(self) -> list[dict[str, object]]:
         log = self.bin / "gh.log"
         return [json.loads(line) for line in log.read_text().splitlines()]
@@ -87,7 +102,7 @@ def tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Tools:
     bin_dir.mkdir()
     git_dir = tmp_path / "git"
     link_git(git_dir)
-    for name, body in (("gh", GH), ("cog", COG)):
+    for name, body in (("gh", GH), ("cog", COG), ("gitleaks", GITLEAKS)):
         write_fake(bin_dir / name, body.format())
     # One statement, not a loop: under Bazel's clean environment there is
     # nothing to remove, and a loop body that never runs is a missed branch.
@@ -95,6 +110,8 @@ def tools(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Tools:
     list(map(monkeypatch.delenv, [n for n in os.environ if n.startswith(prefixes)]))
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{git_dir}")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    write_private_config(tmp_path)
     made = Tools(bin_dir)
     made.view()
     return made
@@ -426,6 +443,36 @@ def test_merge_passes_subject_body_and_head(tools: Tools) -> None:
     assert str(merge["stdin"]).endswith(
         "[1]: https://github.com/tbhb-dev/ascm/issues/12\n"
     )
+
+
+def test_merge_scans_the_final_message(tools: Tools) -> None:
+    assert run_main("12")[0] == 0
+    merge = tools.calls()[1]
+    subject = "feat(cli): add the stamp subcommand (#12)"
+    assert tools.scanned() == [f"{subject}\n\n{merge['stdin']}"]
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_a_finding_in_the_current_body_stops_the_merge(
+    tools: Tools, capsys: pytest.CaptureFixture[str], dry_run: bool
+) -> None:
+    (tools.bin / "gitleaks.spec").write_text(json.dumps([1, "leaks found: 1\n"]))
+    argv = ["12", "--dry-run"] if dry_run else ["12"]
+    code, _ = run_main(*argv)
+    assert code == (
+        "refusing the squash message for PR #12: gitleaks flags it or cannot "
+        "scan it: leaks found: 1"
+    )
+    assert [call["argv"][1] for call in tools.calls()] == ["view"]  # type: ignore[index]
+    assert "gh pr merge" not in capsys.readouterr().out
+
+
+def test_a_missing_private_config_stops_the_merge(tools: Tools, tmp_path: Path) -> None:
+    (tmp_path / ".config" / "gitleaks" / "private.toml").unlink()
+    code, _ = run_main("12")
+    assert "private.toml cannot be read" in str(code)
+    assert tools.scanned() == []
+    assert [call["argv"][1] for call in tools.calls()] == ["view"]  # type: ignore[index]
 
 
 def test_merge_reports_gh_output_and_exit_code(
