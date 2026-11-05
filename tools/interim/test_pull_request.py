@@ -1249,7 +1249,7 @@ def test_create_scans_the_final_title_and_body(
     write_draft(world)
     assert run_main("create", env=agent) == 0
     (call,) = world.calls("gitleaks")
-    assert call["argv"][:3] == ["stdin", "--redact", "--no-banner"]
+    assert cast("list[str]", call["argv"])[:3] == ["stdin", "--redact", "--no-banner"]
     assert call["cwd"] == str(world.root)
     (gh,) = world.calls("gh")
     assert call["stdin"] == f"fix: x\n\n{gh['stdin']}"
