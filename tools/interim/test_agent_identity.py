@@ -2560,15 +2560,11 @@ def test_amending_takes_the_nearest_git_commit() -> None:
     assert ai.amending([]) is False
 
 
-def test_amended_trailers_reads_head_only_when_amending(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_amended_trailers_reads_head_only_when_amending(repo: Path) -> None:
     stage(repo, "a.txt")
     commit(repo, f"s\n\n{GEN_SUB[0]}: {GEN_SUB[1]}\n")
-    monkeypatch.setattr(ai, "ancestry", returning(["git commit -m x"]))
-    assert ai.amended_trailers(repo) == []
-    monkeypatch.setattr(ai, "ancestry", returning(["git commit --amend -m x"]))
-    assert ai.amended_trailers(repo) == [GEN_SUB]
+    assert ai.amended_trailers(repo, amend=False) == []
+    assert ai.amended_trailers(repo, amend=True) == [GEN_SUB]
 
 
 def test_cmd_trailer_amend_keeps_the_amended_commits_trailers(
@@ -2616,16 +2612,94 @@ def test_cmd_trailer_human_amend_keeps_trailers_and_adds_none(
     assert path.read_text(encoding="utf-8") == f"human\n\n{GEN_SUB[0]}: {GEN_SUB[1]}\n"
 
 
-def test_cmd_trailer_keeps_the_fallback_without_any_generated_by(
+def test_cmd_trailer_message_only_amend_adds_no_fallback(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Regression: rewording an Assisted-by-only commit stamped the committer."""
     stage(repo, "a.txt")
     commit(repo, f"s\n\n{ASSIST_OTHER[0]}: {ASSIST_OTHER[1]}\n")
     monkeypatch.setattr(ai, "ancestry", returning(["git commit --amend -m x"]))
     path = msg_file(tmp_path, "x\n")
     assert ai.cmd_trailer(str(path), "message", CLAUDE_COMMIT_ENV) == 0
+    assert ai.llm_trailers(path.read_text(encoding="utf-8")) == [ASSIST_OTHER]
+
+
+def test_cmd_trailer_new_commit_keeps_the_fallback_without_any_generated_by(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stage(repo, "a.txt")
+    monkeypatch.setattr(ai, "ancestry", returning(["git commit -m x"]))
+    path = msg_file(tmp_path, f"x\n\n{ASSIST_OTHER[0]}: {ASSIST_OTHER[1]}\n")
+    assert ai.cmd_trailer(str(path), "message", CLAUDE_COMMIT_ENV) == 0
     keys = [k for k, _ in ai.llm_trailers(path.read_text(encoding="utf-8"))]
     assert keys == ["Generated-by", "Assisted-by"]
+
+
+def replay_dir(repo: Path, name: str = "rebase-merge", at: float = 1000) -> Path:
+    """A rebase state directory whose first file was written at ``at``."""
+    state = repo / ".git" / name
+    state.mkdir()
+    for offset, entry in enumerate(("head-name", "done")):
+        (state / entry).write_text("x\n", encoding="utf-8")
+        os.utime(state / entry, (at + offset, at + offset))
+    return state
+
+
+def test_replay_start_is_none_without_a_replay(repo: Path) -> None:
+    assert ai.replay_start(repo) is None
+
+
+@pytest.mark.parametrize("name", ["rebase-merge", "rebase-apply"])
+def test_replay_start_is_the_oldest_state_file(repo: Path, name: str) -> None:
+    replay_dir(repo, name, at=1000)
+    assert ai.replay_start(repo) == 1000
+
+
+def test_replay_start_of_an_empty_state_dir_is_its_own_time(repo: Path) -> None:
+    state = repo / ".git" / "rebase-apply"
+    state.mkdir()
+    os.utime(state, (500, 500))
+    assert ai.replay_start(repo) == 500
+
+
+@pytest.mark.parametrize("original", [GEN_ROOT, ASSIST_OTHER])
+def test_cmd_trailer_replay_keeps_the_trailers_and_ignores_older_receipts(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, original: ai.Trailer
+) -> None:
+    """Regression: a rebase stamped the rebasing agent as Generated-by."""
+    session = ai.sha256_64("session-raw")
+    stage(repo, "b.txt")
+    put_receipt(
+        repo, "b.json", make_receipt("b.txt", make_ident(root=session), ts=1), session
+    )
+    replay_dir(repo, at=1000)
+    monkeypatch.setattr(ai, "ancestry", returning(["git rebase main"]))
+    path = msg_file(tmp_path, f"feat: b\n\n{original[0]}: {original[1]}\n")
+    assert ai.cmd_trailer(str(path), "message", CLAUDE_COMMIT_ENV) == 0
+    assert ai.llm_trailers(path.read_text(encoding="utf-8")) == [original]
+    assert claims_of(repo)[run_git(repo, "write-tree").strip()]["receipts"] == []
+
+
+def test_cmd_trailer_replay_credits_an_edit_made_during_it(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A conflict resolved with an edit tool during the rebase is still credited."""
+    session = ai.sha256_64("session-raw")
+    stage(repo, "b.txt")
+    put_receipt(
+        repo,
+        "b.json",
+        make_receipt("b.txt", make_ident(root=session), ts=2000),
+        session,
+    )
+    replay_dir(repo, at=1000)
+    monkeypatch.setattr(ai, "ancestry", returning(["git rebase --continue"]))
+    path = msg_file(tmp_path, f"feat: b\n\n{ASSIST_OTHER[0]}: {ASSIST_OTHER[1]}\n")
+    assert ai.cmd_trailer(str(path), "message", CLAUDE_COMMIT_ENV) == 0
+    found = ai.llm_trailers(path.read_text(encoding="utf-8"))
+    assert [k for k, _ in found] == ["Generated-by", "Assisted-by"]
+    assert f"session={session}" in found[0][1]
+    assert found[1] == ASSIST_OTHER
 
 
 # ------------------------------------------------- claims and consume
@@ -3511,6 +3585,29 @@ def test_e2e_amend_keeps_the_subagent_trailer(
     )  # fmt: skip
     assert done.returncode == 0, done.stderr
     assert trailers(wired) == before
+
+
+@needs_prek
+@pytest.mark.parametrize("key", ["Generated-by", "Assisted-by"])
+def test_e2e_rebase_keeps_the_original_trailers(wired: Path, key: str) -> None:
+    """Regression (ascm#22): a rebasing agent with a stale receipt was stamped."""
+    value = f"LLM harness=codex;session={OTHER}"
+    base = run_git(wired, "branch", "--show-current").strip()
+    run_git(wired, "checkout", "-q", "-b", "feat")
+    stage(wired, "b.txt")
+    assert git_commit(wired, f"feat: b\n\n{key}: {value}").returncode == 0
+    run_git(wired, "checkout", "-q", base)
+    stage(wired, "c.txt")
+    assert git_commit(wired, "feat: c").returncode == 0
+    run_git(wired, "checkout", "-q", "feat")
+    # A receipt for b.txt from before the rebase, as a checkout's bash edit leaves.
+    claude_write(wired, "b.txt")
+    done = subprocess.run(
+        ["git", "rebase", "-q", base], capture_output=True, text=True,
+        check=False, cwd=wired, env=hook_env(CLAUDE_E2E),
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    assert trailers(wired) == [f"{key}: {value}"]
 
 
 @needs_prek
