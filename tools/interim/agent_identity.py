@@ -20,10 +20,12 @@ omitted rather than guessed:
 
 The key states the role. ``Generated-by`` goes to an agent holding an
 unconsumed edit receipt for a staged path, or to the committer when no receipt
-matches. ``Assisted-by`` goes to the committer or the root agent when they
-wrote none of the staged content. ``check`` validates only the ``LLM``
-trailers, the same for every committer: ``Signed-off-by`` and ``Co-authored-by``
-are not checked (agents don't add them as a norm; the operator may sign off).
+matches and the commit does not replay content (a rebase, ``git am`` or an amend
+that stages nothing new keeps its trailers). ``Assisted-by`` goes to the
+committer or the root agent when they wrote none of the staged content.
+``check`` validates only the ``LLM`` trailers, the same for every committer:
+``Signed-off-by`` and ``Co-authored-by`` are not checked (agents don't add them
+as a norm; the operator may sign off).
 
 ``stamp-docs`` sets the ``generated`` list of each staged document's frontmatter
 (see docs/schemas/frontmatter.schema.json) to the same identities, from the same
@@ -1518,12 +1520,54 @@ def amending(command_lines: list[str]) -> bool:
     return False
 
 
-def amended_trailers(top: Path) -> list[Trailer]:
+def amended_trailers(top: Path, *, amend: bool) -> list[Trailer]:
     """HEAD's ``LLM`` trailers when this commit replaces HEAD (``--amend``)."""
-    if not amending(ancestry()):
+    if not amend:
         return []
     _, msg = git("log", "-1", "--format=%B", "HEAD", cwd=top)
     return llm_trailers(msg)
+
+
+REPLAY_DIRS = ("rebase-merge", "rebase-apply")
+
+
+def replay_start(top: Path) -> float | None:
+    """When the rebase or ``git am`` in progress began, or None when none is.
+
+    Git writes the state directory's first files when the replay starts and
+    rewrites only some of them later, so the oldest file is the start.
+    """
+    for name in REPLAY_DIRS:
+        code, out = git("rev-parse", "--git-path", name, cwd=top)
+        state = top / out  # an absolute out replaces top
+        if code == 0 and state.is_dir():
+            times = [entry.stat().st_mtime for entry in state.iterdir()]
+            return min(times, default=state.stat().st_mtime)
+    return None
+
+
+def since_replay(
+    edits: list[tuple[Path, Json]], top: Path
+) -> tuple[list[tuple[Path, Json]], bool]:
+    """(the receipts that count, whether a replay is in progress).
+
+    During a replay only receipts recorded since it began count.
+    """
+    started = replay_start(top)
+    if started is None:
+        return edits, False
+    return [(p, rec) for p, rec in edits if rec_ts(rec) >= started], True
+
+
+def no_fallback(
+    edits: list[tuple[Path, Json]], present: list[Trailer], *, replayed: bool
+) -> bool:
+    """Whether the committer fallback is left out.
+
+    It is when no receipt matched and the commit replays content or already has
+    a ``Generated-by``.
+    """
+    return not edits and (replayed or any(key == KEY_GEN for key, _ in present))
 
 
 def unstaged_blobs(top: Path, staged: set[str]) -> dict[str, str]:
@@ -1570,8 +1614,14 @@ def cmd_trailer(msgfile: str, source: str | None, env: Mapping[str, str]) -> int
     An amend keeps every ``LLM`` trailer of the commit it replaces, even with a
     new ``-m``: post-commit consumed that commit's receipts, so they cannot be
     rebuilt. When no receipt matches and the message already has a
-    ``Generated-by`` (such as a message-only amend), the committer fallback is
-    left out.
+    ``Generated-by``, the committer fallback is left out.
+
+    Replayed content gets no fallback either: a commit made during a rebase or
+    ``git am``, or an amend that stages nothing new. It keeps the trailers it
+    already has. During a replay only receipts recorded since it began count,
+    so an agent that edits while resolving a conflict is still credited, and a
+    receipt left over from before the rebase (a checkout's or pull's bash
+    edit, say) is not.
     """
     if source in {"merge", "squash"}:
         return 0
@@ -1579,7 +1629,8 @@ def cmd_trailer(msgfile: str, source: str | None, env: Mapping[str, str]) -> int
     if not repo:
         return 0
     path = Path(msgfile)
-    kept = amended_trailers(repo.top)
+    amend = amending(ancestry())
+    kept = amended_trailers(repo.top, amend=amend)
     committer = committer_identity(env)
     if not committer:
         if kept:
@@ -1591,9 +1642,10 @@ def cmd_trailer(msgfile: str, source: str | None, env: Mapping[str, str]) -> int
     edits = committing(
         load_edits(repo, committer.ident.root), staged, unstaged_blobs(repo.top, staged)
     )
+    edits, replaying = since_replay(edits, repo.top)
     gen, assisted = decide(committer, [rec for _, rec in edits], staged, blobs)
     present = [*llm_trailers(path.read_text()), *kept]
-    if not edits and any(key == KEY_GEN for key, _ in present):
+    if no_fallback(edits, present, replayed=replaying or (amend and not staged)):
         gen, assisted = list[Ident](), list[Ident]()
     add_trailers(path, [enrich(i, committer) for i in gen], assisted, kept)
     write_claim(repo, committer.ident.root, [p for p, _ in edits])
