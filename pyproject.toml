@@ -271,11 +271,12 @@ root_packages = ["tools"]
 
 # The interim modules build on each other in one direction only.
 [[tool.importlinter.contracts]]
-name = "interim layers: squash_merge, pull_request, agent_identity"
+name = "interim layers: squash_merge, pull_request, secret_scan, agent_identity"
 type = "layers"
 layers = [
   "tools.interim.squash_merge",
   "tools.interim.pull_request",
+  "tools.interim.secret_scan",
   "tools.interim.agent_identity",
 ]
 

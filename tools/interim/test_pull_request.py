@@ -22,7 +22,7 @@ from jsonschema import Draft202012Validator
 
 from tools.interim import agent_identity
 from tools.interim import pull_request as pr
-from tools.interim.fake_tool import link_git, write_fake
+from tools.interim.fake_tool import link_git, write_fake, write_private_config
 
 # mutmut runs the tests from a copy of the source tree, so everything resolves
 # against this file: the real repository root, or the mutants/ copy of it.
@@ -116,6 +116,8 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> World:
     shutil.copy(REAL / pr.SECTIONS, root / pr.SECTIONS)
     for name in pr.CONFIGS:
         (root / name).write_text("")
+    (root / ".gitleaks.toml").write_text("")
+    write_private_config(tmp_path)
     monkeypatch.setattr(pr, "ROOT", root)
     # The script runs inside the repository whose branch it posts.
     monkeypatch.chdir(root)
@@ -129,6 +131,7 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> World:
     made.fake("vale", stdout="{}")
     made.fake("cspell")
     made.fake("rumdl")
+    made.fake("gitleaks")
     made.fake("gh", stdout="https://github.com/tbhb-dev/ascm/pull/1\n")
     return made
 
@@ -1238,6 +1241,52 @@ def test_edit_without_labels_and_with_agent(
     (call,) = world.calls("gh")
     assert call["argv"] == ["pr", "edit", "7", "--title", "fix: x", "--body-file", "-"]
     assert str(call["stdin"]).endswith(f"v\n\nAssisted-by: {POSTING}\n")
+
+
+def test_create_scans_the_final_title_and_body(
+    world: World, agent: dict[str, str]
+) -> None:
+    write_draft(world)
+    assert run_main("create", env=agent) == 0
+    (call,) = world.calls("gitleaks")
+    assert cast("list[str]", call["argv"])[:3] == ["stdin", "--redact", "--no-banner"]
+    assert call["cwd"] == str(world.root)
+    (gh,) = world.calls("gh")
+    assert call["stdin"] == f"fix: x\n\n{gh['stdin']}"
+    assert str(call["stdin"]).endswith(f"Assisted-by: {POSTING}\n")
+
+
+@pytest.mark.parametrize(
+    "argv", [("create",), ("create", "--dry-run"), ("edit", "--pr", "7")]
+)
+def test_a_finding_stops_before_gh(
+    world: World, capsys: pytest.CaptureFixture[str], argv: tuple[str, ...]
+) -> None:
+    world.fake("gitleaks", rc=1, stderr="WRN leaks found: 1\n")
+    write_draft(world)
+    with pytest.raises(SystemExit) as info:
+        run_main(*argv)
+    assert str(info.value) == (
+        "refusing the PR title and body: gitleaks flags it or cannot scan it: "
+        "WRN leaks found: 1"
+    )
+    assert world.calls("gh") == []
+    assert "gh pr" not in capsys.readouterr().out
+
+
+def test_a_missing_private_config_stops_before_gh(world: World) -> None:
+    (Path.home() / ".config" / "gitleaks" / "private.toml").unlink()
+    write_draft(world)
+    with pytest.raises(SystemExit, match=r"private\.toml cannot be read"):
+        run_main("create")
+    assert world.calls("gitleaks") == []
+    assert world.calls("gh") == []
+
+
+def test_check_does_not_scan(world: World) -> None:
+    write_draft(world)
+    assert run_main("check") == 0
+    assert world.calls("gitleaks") == []
 
 
 def test_edit_requires_a_pr_number(world: World) -> None:

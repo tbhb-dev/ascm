@@ -34,8 +34,11 @@ them into the commit. They are the LLM trailers of the commits on the branch,
 deduplicated by identity, plus the posting agent as ``Assisted-by``. They are
 machine-written: a draft that contains one fails ``check``, because a person
 cannot compute the session hashes by hand and a stripped line would hide what
-the author thought they had written. Nothing is pushed: when the branch is not
-on the remote, gh's own error is passed through.
+the author thought they had written. Before gh runs, and
+in a dry run too, the final title and body, trailers included, go through
+gitleaks under the host's private config (tools/interim/secret_scan.py), and a
+finding stops the script. Nothing is pushed: when the branch is not on the
+remote, gh's own error is passed through.
 """
 
 import argparse
@@ -55,7 +58,7 @@ from typing import TYPE_CHECKING, cast
 import yaml
 from jsonschema import Draft202012Validator
 
-from tools.interim import agent_identity
+from tools.interim import agent_identity, secret_scan
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -82,6 +85,7 @@ AGY_EDITS = agent_identity.AGY_EDIT_TOOLS
 # The exit code that makes a harness feed a PostToolUse hook's stderr to the agent.
 HOOK_FEEDBACK = 2
 COG = "cog"
+GITLEAKS = "gitleaks"
 MISE = "mise"
 # The title is a commit header, so the sentence-case heading rule does not apply
 # to line 1: a finding on it reads (1, "vale project.HeadingTitleCase: ...").
@@ -718,6 +722,11 @@ def description(checked: Checked, env: Mapping[str, str]) -> str:
     return body + "\n" + "\n".join(f"{key}: {value}" for key, value in merged) + "\n"
 
 
+def scan_secrets(text: str, what: str) -> None:
+    """Refuse text that gitleaks flags; see secret_scan."""
+    secret_scan.scan(text, what, root=ROOT, gitleaks=find_tool(GITLEAKS))
+
+
 def gh_args(meta: Mapping[str, object]) -> list[str]:
     """The gh pr create flags the frontmatter asks for."""
     args = ["--base", base_of(meta)]
@@ -775,6 +784,7 @@ def command(args: argparse.Namespace, env: Mapping[str, str]) -> int:
         print("OK: the draft conforms")
         return 0
     body = description(checked, env)
+    scan_secrets(f"{checked.title}\n\n{body}", "the PR title and body")
     if args.command == "create":
         argv = [GH, "pr", "create", "--title", checked.title, "--body-file", "-"]
         argv += gh_args(checked.meta)

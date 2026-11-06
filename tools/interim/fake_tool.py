@@ -37,3 +37,23 @@ def link_git(directory: Path) -> None:
     directory.mkdir()
     for name in GIT_TOOLS:
         (directory / name).symlink_to(shutil.which(name) or name)
+
+
+# A stand-in for the host's private gitleaks config: it extends the committed
+# config and defines the canary rule that marks it as the private one.
+PRIVATE_CONFIG = """[extend]
+path = ".gitleaks.toml"
+
+[[rules]]
+id = "tbhb-private-canary"
+description = "Test canary"
+regex = '''tbhb-canary-[0-9a-f]{16}'''
+"""
+
+
+def write_private_config(home: Path, text: str = PRIVATE_CONFIG) -> Path:
+    """Write the private gitleaks config under HOME and return its path."""
+    path = home / ".config" / "gitleaks" / "private.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
