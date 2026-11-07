@@ -68,7 +68,7 @@ jobs:
       # //... is every hermetic gate: the whole-tree lint tests (secrets in
       # the working tree, YAML, TOML, Markdown, prose, EditorConfig,
       # workflows, shell, CODEOWNERS paths), the format check, Starlark
-      # lint, nogo during the build, the Go and Python tests and linters,
+      # lint, nogo during the build, the Go tests and linters,
       # the coverage checks, the docs bundle and REUSE checks, the import
       # contracts, and the preset staleness test.
       - name: Test
@@ -106,7 +106,7 @@ jobs:
       timeout-minutes: 10
       gazelle-dirs: .
       module-dirs: .
-      pip-audit-target: //tools:pip_audit
+      pip-audit-target: ""
       govulncheck-target: //:govulncheck
 
   # One stable required check for branch protection. `if: always()` runs it

@@ -252,17 +252,10 @@ ryl_test(
     data = [".rylignore"],
 )
 
-# pyproject.toml's embedded schema refers to these by URL; tombi runs
-# offline, so it reads the pinned copies from MODULE.bazel.
 tombi_test(
     name = "tombi_test",
     srcs = [":repo_files"],
     config = "tombi.toml",
-    schemas = {
-        "https://www.schemastore.org/partial-pytest.json": "@schemastore_partial_pytest//file",
-        "https://www.schemastore.org/ruff.json": "@schemastore_ruff//file",
-        "https://www.schemastore.org/uv.json": "@schemastore_uv//file",
-    },
 )
 
 rumdl_test(
@@ -366,7 +359,6 @@ FORMATTERS = [
     "@tbhb_rules//format:shfmt",
     "@tbhb_rules//format:tombi",
     "@tbhb_rules_go//:golangci_fmt",
-    "@tbhb_rules_python//:ruff",
 ]
 
 format(
@@ -403,15 +395,11 @@ bazel_env(
         "git": "@tbhb_rules_git//:git",
         "gitleaks": "@tbhb_rules_gitleaks//:gitleaks",
         "go": "@rules_go//go",
-        "pyrefly": "//tools:pyrefly",
-        "python": "//tools:python",
-        "ruff": "//tools:ruff",
         "rumdl": "@tbhb_rules_rumdl//:rumdl",
         "ryl": "@tbhb_rules_ryl//:ryl",
         "shellcheck": "@tbhb_rules_shellcheck//:shellcheck",
         "shfmt": "@tbhb_rules_shfmt//:shfmt",
         "tombi": "@tbhb_rules_tombi//:tombi",
-        "uv": "//tools:uv",
         "vale": "@tbhb_rules_vale//:vale",
         "zizmor": "@tbhb_rules_zizmor//:zizmor",
     },

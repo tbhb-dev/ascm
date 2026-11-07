@@ -4,11 +4,11 @@ ascm (agent source control management) is a command-line tool, written in Go, fo
 
 The repository also holds Bazel rules for the tool, plugins for Claude Code, Codex and Antigravity, and the docs.
 
-The project is at the bootstrap stage. Today the binary prints only its usage and build metadata. Interim hooks under `tools/interim/` stamp the attribution trailers until ascm can do it itself.
+The project is at the bootstrap stage. Today the binary prints only its usage and build metadata. Until ascm can stamp the attribution trailers itself, the `tbhbdev alpha` hooks do it.
 
 ## Development
 
-Bazel pins and runs every gate. [mise](https://mise.jdx.dev) only installs `bazelisk` and `uv`, pinned in `mise.toml` and locked in `mise.lock`. Run every gate with:
+Bazel pins and runs every gate. [mise](https://mise.jdx.dev) only installs `bazelisk` and `prek`, pinned in `mise.toml` and locked in `mise.lock`. Run every gate with:
 
 ```sh
 bazelisk test //...
@@ -20,7 +20,7 @@ The Bazel rules come from [tbhb-dev/rules](https://github.com/tbhb-dev/rules). T
 
 ```text
 common --override_module=tbhb_rules=../rules
-common --override_module=tbhb_rules_python=../rules/python
+common --override_module=tbhb_rules_go=../rules/go
 ```
 
 The docs are in [docs/](docs/index.md). Their frontmatter rules are in [docs/reference/frontmatter.md](docs/reference/frontmatter.md).
