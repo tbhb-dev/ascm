@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Tony Burns
 
-# Git hooks for this clone, installed by tools/interim/install.sh (run from the
-# Claude Code SessionStart hook, or by hand). The lint and format hooks call
-# the Bazel-pinned tools through the bazel_env shims in .bazel_env/bin
-# (`bazel run //:bazel_env` builds them), never `bazel run`, so a running
-# build's server lock can't stall a commit. They are the fast per-file
-# subset; `bazel test //...` runs every gate, whole-tree ones included.
+# Git hooks for this clone, installed by `tbhbdev alpha install`. The lint
+# and format hooks call the Bazel-pinned tools through the bazel_env shims in
+# .bazel_env/bin (`bazel run //:bazel_env` builds them), never `bazel run`,
+# so a running build's server lock can't stall a commit. They are the fast
+# per-file subset; `bazel test //...` runs every gate, whole-tree ones
+# included.
 default_stages: [pre-commit]
 
 # Never touch Vale's synced style packages, build output, scratch work, agent
@@ -37,7 +37,7 @@ repos:
         entry: .bazel_env/bin/gitleaks git --pre-commit --staged --redact --no-banner --config .gitleaks.toml
         pass_filenames: false
       # The commit message: secrets, then the Conventional Commits header.
-      # These run from install.sh's plain commit-msg hook, which chains prek's
+      # These run from tbhbdev alpha's plain commit-msg hook, which chains prek's
       # commit-msg stage after the identity check.
       - id: gitleaks-commit-msg
         name: gitleaks (commit message)
@@ -51,16 +51,6 @@ repos:
         entry: .bazel_env/bin/cog verify --file
         stages: [commit-msg]
         always_run: true
-      - id: ruff-format
-        name: ruff format
-        language: system
-        entry: .bazel_env/bin/ruff format --force-exclude
-        types_or: [python]
-      - id: ruff-check
-        name: ruff check
-        language: system
-        entry: .bazel_env/bin/ruff check --force-exclude
-        types_or: [python]
       - id: shfmt
         name: shfmt
         language: system
@@ -103,13 +93,12 @@ repos:
         language: system
         entry: .bazel_env/bin/editorconfig-checker -config .editorconfig-checker.json
 
-  # Interim agent identity (replaced by `ascm git-hook` at M1). The module
-  # needs Python 3.15, and the python3 on PATH may be older, so it runs
-  # through uv. Only stamp-docs runs under prek: tools/interim/install.sh
-  # installs the trailer, check and consume hooks (prepare-commit-msg,
-  # commit-msg, post-commit) as plain git hooks, because prek stashes unstaged
-  # changes around every stage and fails a hook when the work tree changes
-  # while it runs, which a concurrent agent's edit does.
+  # Agent identity, from `tbhbdev alpha identity` (replaced by `ascm git-hook`
+  # at M1). Only stamp-docs runs under prek: `tbhbdev alpha install` installs
+  # the trailer, check and consume hooks (prepare-commit-msg, commit-msg,
+  # post-commit) as plain git hooks, because prek stashes unstaged changes
+  # around every stage and fails a hook when the work tree changes while it
+  # runs, which a concurrent agent's edit does.
   #
   # stamp-docs rewrites the staged blob and the work-tree file together, so
   # prek's modified-files check passes. With unstaged edits next to the
@@ -120,7 +109,7 @@ repos:
       - id: agent-identity-stamp-docs
         name: agent identity stamp docs
         language: system
-        entry: uv run --no-project --quiet --python ">=3.15" python tools/interim/agent_identity.py stamp-docs
+        entry: tbhbdev alpha identity stamp-docs
         stages: [pre-commit]
         types: [markdown]
         pass_filenames: false

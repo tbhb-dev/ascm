@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright Tony Burns
 
-"""The pinned Vale style packages (MODULE.bazel), for //:vale_test,
-//:vale_sync and //tools:pytest_test, which drives vale in its tests."""
+"""The pinned Vale style packages (MODULE.bazel), for //:vale_test and
+//:vale_sync."""
 
 VALE_PACKAGES = {
     "Google": "@vale_google//file",

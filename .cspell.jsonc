@@ -13,8 +13,7 @@
     "MODULE.bazel.lock",
     "mise.lock",
     "tmp/**/*",
-    "tools/testdata/**/*",
-    "uv.lock"
+    "tools/testdata/**/*"
   ],
   "dictionaryDefinitions": [
     {
