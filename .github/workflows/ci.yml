@@ -60,7 +60,7 @@ jobs:
       # the Windows and Linux arm64 fixes, and a fetch that retries
       # transient failures. See its .github/actions/README.md.
       - name: Set up Bazel for CI
-        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@66c9f52bd7bf0f410029f2cf6456306274b2efef  # main
+        uses: tbhb-dev/rules/.github/actions/setup-bazel-ci@2115a5f30f371e7955612cf1f0c31bd7e81633f9  # main
         with:
           disk-cache: ${{ github.workflow }}-${{ matrix.os }}
           cache-save: ${{ github.event_name != 'pull_request' }}
@@ -101,7 +101,7 @@ jobs:
     name: repo
     permissions:
       contents: read
-    uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@66c9f52bd7bf0f410029f2cf6456306274b2efef  # main
+    uses: tbhb-dev/rules/.github/workflows/repo-checks.yml@2115a5f30f371e7955612cf1f0c31bd7e81633f9  # main
     with:
       timeout-minutes: 10
       gazelle-dirs: .
@@ -122,6 +122,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Fail if any needed job did not succeed
-        uses: tbhb-dev/rules/.github/actions/ci-conclusion@66c9f52bd7bf0f410029f2cf6456306274b2efef  # main
+        uses: tbhb-dev/rules/.github/actions/ci-conclusion@2115a5f30f371e7955612cf1f0c31bd7e81633f9  # main
         with:
           needs: ${{ toJSON(needs) }}
