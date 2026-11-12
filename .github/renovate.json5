@@ -7,9 +7,9 @@
   // The presets track tbhb-dev/renovate-config's main branch, pinned by
   // commit; Renovate bumps the pins (the "renovate-config" group).
   extends: [
-    "github>tbhb-dev/renovate-config//default.json5#5abdcea8af69138ab567e12bdbb291f44c41d8e7", // main
-    "github>tbhb-dev/renovate-config//bazel.json5#5abdcea8af69138ab567e12bdbb291f44c41d8e7", // main
-    "github>tbhb-dev/renovate-config//go.json5#5abdcea8af69138ab567e12bdbb291f44c41d8e7", // main
+    "github>tbhb-dev/renovate-config//default.json5#03da9865ae2f2f281eb84bc510ea0bf20a142384", // main
+    "github>tbhb-dev/renovate-config//bazel.json5#03da9865ae2f2f281eb84bc510ea0bf20a142384", // main
+    "github>tbhb-dev/renovate-config//go.json5#03da9865ae2f2f281eb84bc510ea0bf20a142384", // main
   ],
 
   // ascm needs nothing beyond the presets: its Go module and Bazel pins are
