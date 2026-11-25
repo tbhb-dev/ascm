@@ -43,3 +43,6 @@ jobs:
         **/\
         .codex/**\n\
         **/.cursor/**\n"
+    secrets:
+      PIN_APPROVER_CLIENT_ID: ${{ secrets.PIN_APPROVER_CLIENT_ID }}
+      PIN_APPROVER_PRIVATE_KEY: ${{ secrets.PIN_APPROVER_PRIVATE_KEY }}
